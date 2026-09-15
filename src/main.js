@@ -1,0 +1,1548 @@
+/* Mapa neuronal — plugin propio del segundo cerebro.
+ *
+ * v1.0 (15.09.2026): el mapa por capas dentro de Obsidian, en vivo y táctil.
+ * v1.9 (15.09.2026): interfaz en inglés y español, según el idioma de Obsidian (getLanguage()); los
+ *   textos del código están en español y EN los traduce. Una prueba verifica que ninguno quede sin traducir.
+ * v1.8 (15.09.2026): elige tu IA — Claude, OpenAI, Gemini o una IA local (Ollama, LM Studio), con la
+ *   llave guardada por dispositivo; el panel ya no tapa las columnas.
+ * v1.7 (15.09.2026): asistente de capas en el primer uso (detecta carpetas y propone capas) y
+ *   «Resumir con Claude» por nota, con citas verificadas, segunda revisión y aprobación (propiedad resumen).
+ * v1.6 (15.09.2026): listo para vaults ajenos y para la revisión del directorio — valores por
+ *   defecto genéricos, sin APIs privadas, API del vault con normalizePath, sin estilos en línea,
+ *   sección de motivos configurable; se quita «Exportar para Artifact» (flujo personal).
+ * v1.5 (15.09.2026): el panel muestra la frase real de cada enlace; «Conecta tu IA» (llave propia,
+ *   solo en el dispositivo) para ✦ Sugerir motivo con citas literales verificadas por código, segunda
+ *   revisión y aprobación humana antes de escribir; registro de auditoría en raw/daily.
+ * v1.4 (15.09.2026): ⋯ → Exportar para Artifact (página lista para publicar + instrucción copiada).
+ * v1.3 (15.09.2026): el panel EXPLICA (resumen, rol: puente / central / aislada, relaciones en
+ *   lenguaje claro, «de dónde salió» compacto) y las líneas se ANIMAN con pulsos en el sentido
+ *   en que se compila el conocimiento. Solo con la vista visible; respeta reducir movimiento.
+ * v1.2 (15.09.2026): vacíos entre temas (con notas que podrían unirlos), temas colapsables en
+ *   supernodos con superenlaces, y vista radial (la nota al centro, anillos por distancia).
+ * v1.1 (15.09.2026): deja de estar fijo a un vault —
+ *   · Ajustes: carpetas → capas, nombres de capa, propiedad de tema, colores, exclusiones.
+ *   · Sigue la nota activa: abrir una nota la enfoca en el mapa.
+ *   · Camino entre dos notas: la ruta más corta, con el motivo de cada salto.
+ *   · Modo salud: huérfanas, sin tema, enlaces sin motivo — el lint, visual.
+ *   · Actividad reciente: resalta lo actualizado en 7 o 30 días (propiedad `updated`).
+ *   · Exportar PNG a docs/.
+ *   · Menú ⋯ con las herramientas, para que la barra quepa en el celular.
+ *
+ * Funciona en el iPhone: solo API de Obsidian (nada de Node), sin fuentes externas.
+ */
+import { Plugin, ItemView, PluginSettingTab, Setting, Menu, Modal, Notice, Platform, debounce, setIcon, requestUrl, normalizePath, getLanguage } from 'obsidian';
+
+// ── Idioma de la interfaz ──────────────────────────────────────────────────────
+// El código lleva los textos en español (idioma del autor) y EN los traduce. Obsidian
+// guarda el idioma elegido en localStorage.language; si no es español, se usa inglés.
+const EN = {
+  // asistente de capas
+  'Organiza tu mapa en capas': 'Organize your map in layers',
+  'El mapa ordena tus notas de izquierda a derecha, de lo que entra a lo que se sintetiza. Revisa en qué capa va cada carpeta; ya propusimos una según su nombre.':
+    'The map lays your notes out from left to right, from what comes in to what it adds up to. Check which layer each folder belongs to; we already proposed one from its name.',
+  'Tu vault todavía no tiene notas.': 'Your vault has no notes yet.',
+  'No mostrar': "Don't show",
+  'Notas en la raíz del vault': 'Notes in the vault root',
+  '{0} nota': '{0} note',
+  '{0} notas': '{0} notes',
+  'Ahora no': 'Not now',
+  'Aplicar': 'Apply',
+  'Elige al menos una carpeta para mostrar': 'Choose at least one folder to show',
+  'Capas aplicadas. Puedes ajustarlas en la configuración del plugin.': 'Layers applied. You can adjust them in the plugin settings.',
+  'Entrada': 'Input',
+  'notas diarias, fuentes y capturas': 'daily notes, sources and clippings',
+  'Entidades': 'Entities',
+  'proyectos, personas y clientes': 'projects, people and clients',
+  'Conocimiento': 'Knowledge',
+  'ideas, referencias y aprendizajes': 'ideas, references and lessons',
+  'Temas': 'Topics',
+  'síntesis y mapas de contenido': 'syntheses and maps of content',
+  'Notas': 'Notes',
+  'el resto del vault': 'the rest of the vault',
+  'notas con fecha': 'notes with a date',
+  'Conexiones': 'Connections',
+  // barra y guía
+  'buscar nota…': 'search note…',
+  'No hay notas con ese nombre': 'No notes with that name',
+  '⋯ herramientas': '⋯ tools',
+  'Alejar': 'Zoom out',
+  'Encuadrar': 'Fit to screen',
+  'Acercar': 'Zoom in',
+  'Cada línea es un enlace real. Toca una nota para seguir su camino y leer por qué se conecta. ⋯ para más herramientas.':
+    'Every line is a real link. Tap a note to follow its path and read why it connects. ⋯ for more tools.',
+  'Mapa neuronal · {0} nodos · {1} enlaces': 'Neural map · {0} nodes · {1} links',
+  ' · {0} repos': ' · {0} repos',
+  ' · {0} Archify': ' · {0} Archify',
+  '{0} nodos': '{0} nodes',
+  ' · +{0} ocultas': ' · +{0} hidden',
+  // estado
+  '◎ radial': '◎ radial',
+  '◎ radial: toca una nota': '◎ radial: tap a note',
+  '◉ {0} tema(s) colapsado(s)': '◉ {0} topic(s) collapsed',
+  '⌁ vacíos': '⌁ gaps',
+  '❤︎ salud': '❤︎ health',
+  '◷ últimos {0} días': '◷ last {0} days',
+  '◯ con repositorio': '◯ with a repository',
+  'todas las conexiones': 'all connections',
+  '→ toca la nota de destino': '→ tap the target note',
+  '→ toca la nota de origen': '→ tap the source note',
+  // menú de herramientas
+  'Camino entre dos notas': 'Path between two notes',
+  'Toca la nota de origen': 'Tap the source note',
+  'Volver a la vista por capas': 'Back to the layered view',
+  'Vista radial (la nota al centro)': 'Radial view (the note at the centre)',
+  'Toca una nota para ponerla al centro': 'Tap a note to put it at the centre',
+  'Ocultar vacíos entre temas': 'Hide gaps between topics',
+  'Vacíos entre temas': 'Gaps between topics',
+  'Quitar modo salud': 'Turn off health mode',
+  'Modo salud': 'Health mode',
+  'Expandir': 'Expand',
+  'Colapsar': 'Collapse',
+  '{0} {1}': '{0} {1}',
+  'Expandir todos': 'Expand all',
+  'Actualizado en {0} días': 'Updated within {0} days',
+  'Toda la actividad': 'All activity',
+  'Solo notas con repositorio': 'Only notes with a repository',
+  'Mostrar todas las conexiones': 'Show all connections',
+  'Exportar imagen (PNG)': 'Export image (PNG)',
+  'Recargar el mapa': 'Reload the map',
+  'Asistente de capas': 'Layer wizard',
+  // panel
+  'Cerrar': 'Close',
+  'Radial': 'Radial',
+  'Camino': 'Path',
+  'Ahora toca la nota de destino': 'Now tap the target note',
+  'Toca la nota de destino': 'Tap the target note',
+  'No hay camino entre esas dos notas': 'There is no path between those two notes',
+  'sin tema': 'no topic',
+  '{0} · {1} notas': '{0} · {1} notes',
+  'Resumen tomado del primer párrafo de la nota.': 'Summary taken from the first paragraph of the note.',
+  'Resumen aprobado (propiedad resumen).': 'Approved summary (summary property).',
+  'Rehacer resumen con IA': 'Redo summary with AI',
+  'Resumir con IA': 'Summarize with AI',
+  'Capa {0}: {1}.': 'Layer {0}: {1}.',
+  'Salud': 'Health',
+  'huérfana: ninguna nota la enlaza ni enlaza a otra': 'orphan: no note links to it and it links to none',
+  'sin propiedad `{0}`': 'missing `{0}` property',
+  '{0} enlace(s) sin motivo escrito': '{0} link(s) with no written reason',
+  // rol
+  'Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.':
+    'Groups {0} notes of the topic. Long-press it or use "Expand" to see them separately.',
+  'Página de síntesis: resume el tema y de ella cuelgan sus notas.': 'Synthesis page: it sums up the topic and its notes hang from it.',
+  'Aislada: ninguna nota la enlaza y ella no enlaza a ninguna.': 'Isolated: no note links to it and it links to none.',
+  'Nota central: está entre el 10 % más conectado del cerebro.': 'Central note: among the 10% most connected in the vault.',
+  'Puente entre {0} temas: conecta {1} con {2}.': 'Bridge between {0} topics: it connects {1} with {2}.',
+  'Conecta {0} con {1}.': 'It connects {0} with {1}.',
+  'Vive dentro de {0}: todas sus conexiones son del mismo tema.': 'It lives inside {0}: all its connections are in the same topic.',
+  'su tema': 'its topic',
+  // enlaces y sugerencias
+  '{0} enlace(s) agrupados': '{0} grouped links',
+  'en el texto: ': 'in the text: ',
+  'enlazadas sin frase visible': 'linked with no visible sentence',
+  'Sugerir motivo ✦': 'Suggest a reason ✦',
+  'Leyendo la nota…': 'Reading the note…',
+  'Leyendo las dos notas…': 'Reading both notes…',
+  'Resumen propuesto (verificado)': 'Proposed summary (verified)',
+  'No se puede aprobar': 'Cannot be approved',
+  '✦ Motivo propuesto (verificado)': '✦ Proposed reason (verified)',
+  '✕ No se puede aprobar': '✕ Cannot be approved',
+  'Cita ✓: ': 'Quote ✓: ',
+  'Cita ✕ no aparece literal: ': 'Quote ✕ not found literally: ',
+  ' ✕ no aparece literal': ' ✕ not found literally',
+  '✓ Segunda revisión: fiel a la nota': '✓ Second pass: faithful to the note',
+  '✓ Segunda revisión: fiel al texto': '✓ Second pass: faithful to the text',
+  '✕ Segunda revisión: ': '✕ Second pass: ',
+  'Aprobar y guardar en la nota': 'Approve and save in the note',
+  'Aprobar y escribir en la nota': 'Approve and write in the note',
+  'Reintentar': 'Try again',
+  'Descartar': 'Discard',
+  'Motivo escrito en la nota y registrado.': 'Reason written in the note and logged.',
+  'Resumen guardado en la propiedad resumen de la nota.': "Summary saved in the note's summary property.",
+  'Cita de la nota de origen': 'Quote from the source note',
+  'Cita de la nota enlazada': 'Quote from the linked note',
+  // vacíos
+  'Lo que debería estar conectado y no lo está': "What should be connected and isn't",
+  'Pares de temas con muchos menos enlaces de los esperables por su tamaño. Las sugerencias son notas que comparten vecinos pero no se enlazan.':
+    'Pairs of topics with far fewer links than their size would suggest. The suggestions are notes that share neighbours but do not link to each other.',
+  'No hay vacíos marcados: los temas se enlazan entre sí en proporción a su tamaño.': 'No gaps flagged: topics link to each other in proportion to their size.',
+  '{0} enlace(s); por su tamaño se esperarían ~{1}': '{0} link(s); their size would suggest ~{1}',
+  'Sin notas que compartan vecinos: el puente todavía no existe.': 'No notes share neighbours: the bridge does not exist yet.',
+  '{0}  ↔  {1} · {2} vecino(s) en común': '{0}  ↔  {1} · {2} neighbour(s) in common',
+  // salud e imagen
+  'Salud: {0} huérfana(s) · {1} sin tema · {2} enlace(s) sin motivo': 'Health: {0} orphan(s) · {1} with no topic · {2} link(s) with no reason',
+  'No se pudo generar la imagen': 'The image could not be generated',
+  'Imagen guardada en {0}': 'Image saved to {0}',
+  // camino
+  'Camino · {0} salto(s)': 'Path · {0} hop(s)',
+  'La ruta más corta entre las dos notas, y por qué se conecta cada paso.': 'The shortest route between the two notes, and why each step connects.',
+  '{0} (supernodo)': '{0} (supernode)',
+  // ajustes
+  'Los cambios se aplican al cerrar este panel o al tocar ⋯ herramientas y luego recargar el mapa.':
+    'Changes apply when you close this panel, or from ⋯ tools → Reload the map.',
+  'Capas': 'Layers',
+  'Una por línea, de izquierda a derecha: «Nombre | descripción».': 'One per line, left to right: "Name | description".',
+  'Carpetas → capa': 'Folders → layer',
+  'Una por línea: «carpeta = número de capa» (0 es la primera). Gana la carpeta más específica. Lo que no esté aquí no aparece.':
+    'One per line: "folder = layer number" (0 is the first). The most specific folder wins. Anything not listed here is not shown.',
+  'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.':
+    'One per line: "value = visible name = #colour". Topics not listed here get an automatic colour.',
+  'Excluir notas': 'Exclude notes',
+  'Nombres de nota (sin .md), separados por coma o línea. Útil para notas que enlazan a todo.':
+    'Note names (without .md), separated by commas or line breaks. Useful for notes that link to everything.',
+  'Propiedad de tema': 'Topic property',
+  'Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.': 'The frontmatter property that groups and colours notes. Empty = no topics.',
+  'Mostrar fuentes citadas': 'Show cited sources',
+  'Agrega a la primera capa los archivos de raw/ que las notas citan.': 'Adds the files from raw/ that your notes cite to the first layer.',
+  'Notas visibles por capa': 'Notes visible per layer',
+  'En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.':
+    'In large vaults each layer shows its most connected notes. The rest appear when you search for them or open them from the panel.',
+  'Seguir la nota activa': 'Follow the active note',
+  'Al abrir una nota, el mapa la enfoca.': 'Opening a note focuses it on the map.',
+  'Animación': 'Animation',
+  'Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.':
+    'Pulses of light travelling along the links. Only while the map is visible, and off if your system asks for reduced motion.',
+  'Carpeta para exportar imágenes': 'Folder for exported images',
+  'Sección de conexiones': 'Connections section',
+  'Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).':
+    'The heading at the end of each note where approved reasons are written ("- [[note]] — reason").',
+  'Conecta tu inteligencia artificial (opcional)': 'Connect your own AI (optional)',
+  'Para el botón de sugerir motivo. Usa tu propia llave de la API, se guarda solo en este dispositivo y no viaja por Sync ni por git. La IA propone; tú apruebas.':
+    'For the suggest-a-reason button. It uses your own API key, stored only on this device — it never travels through Sync or git. The AI proposes; you approve.',
+  'Proveedor': 'Provider',
+  'Elige con qué IA se generan los motivos y los resúmenes. Los controles de calidad (citas verificadas y tu aprobación) funcionan con todos.':
+    'Choose which AI writes the reasons and summaries. The quality locks (verified quotes and your approval) work with all of them.',
+  'Llave de la API': 'API key',
+  'Guardada en este dispositivo. ': 'Stored on this device. ',
+  'guardada': 'stored',
+  'pega la llave aquí': 'paste the key here',
+  'Borrar': 'Delete',
+  'Llave borrada de este dispositivo': 'Key deleted from this device',
+  'Sin llave': 'No key needed',
+  'Dirección del servidor local': 'Local server address',
+  'Compatible con OpenAI. Ollama usa http://localhost:11434/v1/chat/completions.': 'OpenAI-compatible. Ollama uses http://localhost:11434/v1/chat/completions.',
+  'Modelo': 'Model',
+  'nombre del modelo': 'model name',
+  'La calidad de los motivos se midió con Claude Opus 5: 97,7 % correctos y 0 inventados sobre 50 conexiones. Con otros modelos los candados siguen puestos (citas verificadas y tu aprobación), pero la precisión no está medida.':
+    'Reason quality was measured with Claude Opus 5: 97.7% correct and 0 invented over 50 connections. With other models the locks still apply (verified quotes and your approval), but the accuracy is unmeasured.',
+  'Segunda revisión': 'Second pass',
+  'Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.':
+    'A second call checks the reason for faithfulness (negations, states, pending items). It costs twice as much and blocks errors of nuance.',
+  'Carpeta del registro de aprobaciones': 'Approval log folder',
+  'Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.':
+    'Every approved reason is logged (date, quotes, model) in <folder>/<date>/mapa-neuronal-motivos.md.',
+  'Restablecer': 'Reset',
+  'Vuelve a los valores por defecto.': 'Back to the default values.',
+  'Restablecer no borra la llave guardada en este dispositivo.': 'Reset does not delete the key stored on this device.',
+  // proveedores
+  'Crea la llave en console.anthropic.com, sección API keys.': 'Create the key at console.anthropic.com, API keys section.',
+  'claude-opus-5 es el más preciso (97,7 % en nuestra prueba). claude-sonnet-5 y claude-haiku-4-5 son más baratos.':
+    'claude-opus-5 is the most accurate (97.7% in our test). claude-sonnet-5 and claude-haiku-4-5 are cheaper.',
+  'Crea la llave en platform.openai.com. Una suscripción de ChatGPT no sirve: la API se paga por uso.':
+    'Create the key at platform.openai.com. A ChatGPT subscription does not work: the API is paid per use.',
+  'Escribe el identificador del modelo, como aparece en la documentación de OpenAI.': "Type the model identifier, as it appears in OpenAI's documentation.",
+  'Crea la llave en aistudio.google.com.': 'Create the key at aistudio.google.com.',
+  'Escribe el identificador del modelo, como aparece en la documentación de Gemini.': "Type the model identifier, as it appears in Gemini's documentation.",
+  'Gratis y sin enviar tus notas a internet. Necesitas Ollama o LM Studio corriendo en este computador. No funciona en el celular.':
+    'Free, and your notes never leave your computer. You need Ollama or LM Studio running here. Not available on mobile.',
+  'El nombre del modelo que descargaste, por ejemplo el que muestra «ollama list».': 'The name of the model you downloaded, as shown by "ollama list".',
+  // errores de la IA
+  'Proveedor de IA desconocido.': 'Unknown AI provider.',
+  'Falta la llave de {0} en este dispositivo (configuración del plugin).': 'The {0} key is missing on this device (plugin settings).',
+  'Falta escribir el modelo en la configuración del plugin.': 'You need to type the model in the plugin settings.',
+  'La IA no devolvió un resultado legible. Prueba con otro modelo.': 'The AI did not return a readable result. Try another model.',
+  '{0} rechazó la llave ({1}).': '{0} rejected the key ({1}).',
+  '{0} alcanzó su límite de uso (429). Intenta más tarde.': '{0} hit its usage limit (429). Try again later.',
+  '{0} no respondió ({1}). Si es una IA local, revisa que esté corriendo.': '{0} did not answer ({1}). If it is a local AI, check that it is running.',
+  '{0} respondió {1}: {2}': '{0} answered {1}: {2}',
+  'El modelo declinó esta solicitud.': 'The model declined this request.',
+  'La respuesta quedó cortada. Reintenta.': 'The answer was cut short. Try again.',
+  'Una de las notas es demasiado larga para enviarla completa (más de 60.000 caracteres).': 'One of the notes is too long to send in full (over 60,000 characters).',
+  'La nota es demasiado larga para enviarla completa (más de 60.000 caracteres).': 'The note is too long to send in full (over 60,000 characters).',
+  'No encuentro la nota': 'I cannot find the note',
+  'No encuentro la nota de origen': 'I cannot find the source note',
+  'Abrir el mapa': 'Open the map',
+  'Mostrar la nota actual en el mapa': 'Show the current note on the map',
+};
+let _es = null; // se resuelve una vez: Obsidian pide reiniciar para cambiar de idioma
+const enEspanol = () => {
+  if (_es === null) {
+    let l = 'en';
+    try { l = getLanguage() || 'en'; } catch { l = 'en'; } // fuera de Obsidian: inglés
+    _es = String(l).toLowerCase().startsWith('es');
+  }
+  return _es;
+};
+const T = (clave, ...vals) => {
+  let s = enEspanol() ? clave : (EN[clave] !== undefined ? EN[clave] : clave);
+  vals.forEach((v, i) => { s = s.split('{' + i + '}').join(String(v)); });
+  return s;
+};
+
+const VISTA = 'mapa-neuronal';
+const PALETA = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635'];
+const AJUSTES_BASE = {
+  capas: 'Entrada | notas con fecha\nNotas | el resto del vault',
+  carpetas: '',
+  propiedadTema: 'tema',
+  temas: '',
+  excluir: '',
+  fuentes: false,
+  seguirActiva: true,
+  carpetaExport: 'Mapa neuronal',
+  animacion: true,
+  proveedorIA: 'claude',
+  modeloIA: 'claude-opus-5',
+  urlLocal: 'http://localhost:11434/v1/chat/completions',
+  dobleVerificacion: true,
+  carpetaAuditoria: 'Mapa neuronal/aprobaciones',
+  seccionMotivos: 'Conexiones',
+  configurado: false,
+  maxPorCapa: 150,
+};
+// Las llaves viven en el localStorage del vault (por dispositivo): NO viajan por Sync ni por git.
+const CLAVE_IA = (proveedor) => `mapa-neuronal-key-${proveedor}`;
+const PROVEEDORES = {
+  claude: { nombre: 'Claude (Anthropic)', url: 'https://api.anthropic.com/v1/messages', llave: true, ayuda: 'Crea la llave en console.anthropic.com, sección API keys.', modeloAyuda: 'claude-opus-5 es el más preciso (97,7 % en nuestra prueba). claude-sonnet-5 y claude-haiku-4-5 son más baratos.', modelo: 'claude-opus-5' },
+  openai: { nombre: 'OpenAI (ChatGPT)', url: 'https://api.openai.com/v1/chat/completions', llave: true, ayuda: 'Crea la llave en platform.openai.com. Una suscripción de ChatGPT no sirve: la API se paga por uso.', modeloAyuda: 'Escribe el identificador del modelo, como aparece en la documentación de OpenAI.', modelo: '' },
+  gemini: { nombre: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/models', llave: true, ayuda: 'Crea la llave en aistudio.google.com.', modeloAyuda: 'Escribe el identificador del modelo, como aparece en la documentación de Gemini.', modelo: '' },
+  local: { nombre: 'IA local (Ollama, LM Studio)', url: 'http://localhost:11434/v1/chat/completions', llave: false, ayuda: 'Gratis y sin enviar tus notas a internet. Necesitas Ollama o LM Studio corriendo en este computador. No funciona en el celular.', modeloAyuda: 'El nombre del modelo que descargaste, por ejemplo el que muestra «ollama list».', modelo: '' },
+};
+const RAW = /raw\/(articles\/[\w\-.]+\.(?:md|pdf)|daily\/\d{4}-\d{2}-\d{2})/g;
+const MOTIVO = /^- \[\[([^\]|#]+)\]\]\s+—\s+(.+)$/gm;
+const rgba = (h, a) => { const v = parseInt(String(h).replace('#', ''), 16) || 0xC9D1FF; return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${a})`; };
+// Fecha LOCAL, no UTC: en Chile, después de las 21:00 toISOString() ya es el día siguiente (lección del 01.09).
+const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const diasDesde = (f) => { const t = Date.parse(String(f || '').slice(0, 10)); return isNaN(t) ? Infinity : (Date.now() - t) / 864e5; };
+
+function leerAjustes(s) {
+  const capas = s.capas.split('\n').map((l) => l.split('|').map((x) => x.trim())).filter((x) => x[0]).map((x, i) => [`L${i}`, x[0], x[1] || '']);
+  const carpetas = s.carpetas.split('\n').map((l) => l.split('=').map((x) => x.trim())).filter((x) => x[0] && x[1] !== undefined)
+    .map(([c, n]) => [c === '/' ? '/' : c.replace(/\/+$/, ''), Math.max(0, Math.min(capas.length - 1, parseInt(n, 10) || 0))])
+    .sort((a, b) => b[0].length - a[0].length);
+  const temas = {};
+  s.temas.split('\n').map((l) => l.split('=').map((x) => x.trim())).filter((x) => x[0]).forEach(([id, nombre, color], i) => {
+    temas[id] = [nombre || id, color || PALETA[i % PALETA.length]];
+  });
+  const excluir = new Set(s.excluir.split(/[\n,]/).map((x) => x.trim()).filter(Boolean));
+  return { capas, carpetas, temas, excluir };
+}
+
+function limpiarFrase(l) {
+  const t = l.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/^\s*(?:[-*>|]\s*)+/, '').replace(/[*_`]/g, '').replace(/\|/g, ' · ').replace(/\s+/g, ' ').trim();
+  return t.length > 220 ? t.slice(0, 219) + '…' : t;
+}
+
+function resumir(texto) {
+  const cuerpo = texto.replace(/^---[\s\S]*?\n---\n?/, '');
+  const i = cuerpo.search(/^## En una frase\s*$/m);
+  const desde = i >= 0 ? cuerpo.slice(i).split('\n').slice(1).join('\n') : cuerpo.replace(/^#\s.*$/m, '');
+  const parrafo = desde.split(/\n\s*\n/).map((x) => x.trim()).find((x) => x && !x.startsWith('#') && !x.startsWith('>') && !x.startsWith('|'));
+  if (!parrafo) return '';
+  const limpio = parrafo.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/[*_`]/g, '').replace(/\s+/g, ' ');
+  return limpio.length > 260 ? limpio.slice(0, 259) + '…' : limpio;
+}
+
+async function construir(app, s) {
+  const cfg = leerAjustes(s);
+  const nodos = {}, porRuta = {}, aristas = new Map();
+  const poner = (a, b, m) => { const k = a < b ? a + '|' + b : b + '|' + a; if (!aristas.has(k) || (m && !aristas.get(k))) aristas.set(k, m || ''); };
+  const capaDe = (ruta) => {
+    if (!cfg.carpetas.length) return /^\d{4}-\d{2}-\d{2}/.test(ruta.split('/').pop()) ? 0 : Math.min(1, cfg.capas.length - 1);
+    for (const [c, n] of cfg.carpetas) if ((c === '' || c === '/') ? !ruta.includes('/') : (ruta === c || ruta.startsWith(c + '/'))) return n;
+    return -1;
+  };
+
+  for (const f of app.vault.getMarkdownFiles()) {
+    const capa = capaDe(f.path);
+    if (capa < 0 || cfg.excluir.has(f.basename)) continue;
+    const fm = app.metadataCache.getFileCache(f)?.frontmatter || {};
+    let tema = fm[s.propiedadTema]; if (Array.isArray(tema)) tema = tema[0];
+    tema = tema ? String(tema) : null;
+    if (tema && !cfg.temas[tema]) cfg.temas[tema] = [tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
+    nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: String(fm.title || f.basename).slice(0, 90), tema,
+      propio: !!tema, updated: fm.updated ? String(fm.updated) : null, resumenAprobado: fm.resumen ? String(fm.resumen) : null,
+      repos: [].concat(fm.repos || []).map(String),
+      archify: [].concat(fm.archify || []).map((x) => { const [t, u] = String(x).split('|'); return { titulo: u ? t : 'Mapa de arquitectura', url: u || t }; }) };
+    porRuta[f.path] = f.path;
+  }
+  const resueltos = app.metadataCache.resolvedLinks, sinMotivoPorNota = {}, frases = {};
+  for (const id of Object.keys(nodos)) {
+    const archivo = app.vault.getFileByPath(id);
+    const texto = archivo ? await app.vault.cachedRead(archivo) : '';
+    nodos[id].resumen = nodos[id].resumenAprobado || resumir(texto);
+    const curados = {};
+    for (const m of texto.matchAll(MOTIVO)) curados[m[1].trim()] = m[2].trim();
+    const lineas = texto.split('\n'), finCuerpo = (() => { const i = lineas.findIndex((l) => l.startsWith('## ' + (s.seccionMotivos || 'Conexiones'))); return i < 0 ? lineas.length : i; })();
+    for (const destino of Object.keys(resueltos[id] || {})) {
+      if (!porRuta[destino] || destino === id) continue;
+      const base = destino.split('/').pop().replace(/\.md$/, '');
+      poner(id, destino, curados[base] || '');
+      if (!curados[base]) {
+        const k = id < destino ? id + '|' + destino : destino + '|' + id;
+        if (!frases[k]) for (let i = 0; i < finCuerpo; i++) {
+          const l = lineas[i];
+          if (l.includes('[[' + base + ']]') || l.includes('[[' + base + '|')) { frases[k] = { origen: id, destino, linea: i + 1, texto: limpiarFrase(l) }; break; }
+        }
+      }
+    }
+    if (s.fuentes) for (const m of texto.matchAll(RAW)) {
+      const rid = 'raw:' + m[1];
+      if (!nodos[rid]) nodos[rid] = { id: rid, capa: 0, ruta: 'raw/' + m[1], titulo: m[1].split('/').slice(1).join('/').slice(0, 80), tema: null, propio: false, fuente: true };
+      poner(rid, id, 'fuente citada en la página');
+    }
+  }
+  const vecinos = {};
+  Object.keys(nodos).forEach((k) => (vecinos[k] = new Set()));
+  for (const [k, m] of aristas) {
+    const [a, b] = k.split('|'); vecinos[a].add(b); vecinos[b].add(a);
+    if (!m) { sinMotivoPorNota[a] = (sinMotivoPorNota[a] || 0) + 1; sinMotivoPorNota[b] = (sinMotivoPorNota[b] || 0) + 1; }
+  }
+  for (const n of Object.values(nodos)) {
+    if (!n.tema) {
+      const c = {}; vecinos[n.id].forEach((v) => { const t = nodos[v].tema; if (t) c[t] = (c[t] || 0) + 1; });
+      n.tema = Object.keys(c).sort((x, y) => c[y] - c[x])[0] || null;
+    }
+    n.grado = vecinos[n.id].size;
+    n.sinMotivo = sinMotivoPorNota[n.id] || 0;
+  }
+  const ordenTema = Object.fromEntries(Object.keys(cfg.temas).map((t, i) => [t, i]));
+  const cols = cfg.capas.map((_, i) => Object.values(nodos).filter((n) => n.capa === i));
+  cols.forEach((c) => c.sort((p, q) => (ordenTema[p.tema] ?? 99) - (ordenTema[q.tema] ?? 99) || q.grado - p.grado));
+  const pos = {};
+  const indexar = () => cols.forEach((c) => c.forEach((n, i) => (pos[n.id] = i / Math.max(c.length - 1, 1))));
+  indexar();
+  for (let it = 0; it < 6; it++) cols.forEach((c, capa) => {
+    c.forEach((n) => { const vs = [...vecinos[n.id]].filter((v) => Math.abs(nodos[v].capa - capa) === 1).map((v) => pos[v]); n._b = vs.length ? vs.reduce((a, x) => a + x, 0) / vs.length : pos[n.id]; });
+    c.sort((p, q) => (ordenTema[p.tema] ?? 99) - (ordenTema[q.tema] ?? 99) || p._b - q._b);
+    indexar();
+  });
+  return { nodos: cols.flat(), aristas: [...aristas].map(([k, m]) => [...k.split('|'), m, frases[k] || null]), capas: cfg.capas, temas: cfg.temas };
+}
+
+// ── Asistente de capas: el primer uso en un vault cualquiera ─────────────────
+const CAPAS_ESTANDAR = [
+  ['Entrada', 'notas diarias, fuentes y capturas'],
+  ['Entidades', 'proyectos, personas y clientes'],
+  ['Conocimiento', 'ideas, referencias y aprendizajes'],
+  ['Temas', 'síntesis y mapas de contenido'],
+];
+const PISTAS = [
+  [0, ['daily', 'diario', 'diarias', 'journal', 'inbox', 'bandeja', 'fuente', 'source', 'clipping', 'raw', 'captura', 'periodic', 'reunion', 'meeting', 'log', 'bitacora']],
+  [1, ['people', 'persona', 'contact', 'client', 'cliente', 'project', 'proyecto', 'compan', 'empresa', 'entidad', 'entit', 'org']],
+  [3, ['topic', 'tema', 'moc', 'map', 'indice', 'index', 'area', 'hub']],
+  [-1, ['template', 'plantilla', 'attachment', 'adjunto', 'asset', 'archive', 'archivo', 'excalidraw', 'trash', 'papelera']],
+];
+function sinAcentos(t) { return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+function sugerirCapa(nombre) {
+  const n = sinAcentos(nombre.split('/').pop());
+  for (const [capa, claves] of PISTAS) if (claves.some((k) => n.includes(k))) return capa;
+  return 2;
+}
+function detectarCarpetas(app) {
+  const archivos = app.vault.getMarkdownFiles(), total = archivos.length || 1, top = {}, sub = {};
+  for (const f of archivos) {
+    const partes = f.path.split('/');
+    const t = partes.length === 1 ? '/' : partes[0];
+    top[t] = (top[t] || 0) + 1;
+    if (partes.length > 2) { const k = partes.slice(0, 2).join('/'); sub[k] = (sub[k] || 0) + 1; }
+    else if (partes.length === 2) { const k = partes[0] + '/·'; sub[k] = (sub[k] || 0) + 1; }
+  }
+  let lista = [];
+  for (const [t, c] of Object.entries(top)) {
+    const hijas = Object.entries(sub).filter(([k]) => k.startsWith(t + '/') && !k.endsWith('/·'));
+    if (t !== '/' && c / total > 0.6 && hijas.length >= 2) {
+      for (const [k, ch] of hijas) lista.push([k, ch]);
+      const sueltas = sub[t + '/·']; if (sueltas) lista.push([t, sueltas]);
+    } else lista.push([t, c]);
+  }
+  return lista.sort((a, b) => b[1] - a[1]).slice(0, 40).map(([carpeta, notas]) => ({ carpeta, notas, capa: carpeta === '/' ? 2 : sugerirCapa(carpeta) }));
+}
+class AsistenteCapas extends Modal {
+  constructor(app, plugin) { super(app); this.plugin = plugin; }
+  onOpen() {
+    const { contentEl: c } = this; c.empty(); c.addClass('mn-asistente');
+    this.setTitle(T('Organiza tu mapa en capas'));
+    c.createEl('p', { text: T('El mapa ordena tus notas de izquierda a derecha, de lo que entra a lo que se sintetiza. Revisa en qué capa va cada carpeta; ya propusimos una según su nombre.') });
+    const filas = detectarCarpetas(this.app);
+    if (!filas.length) { c.createEl('p', { text: T('Tu vault todavía no tiene notas.') }); return; }
+    const opciones = { '0': T(CAPAS_ESTANDAR[0][0]), '1': T(CAPAS_ESTANDAR[1][0]), '2': T(CAPAS_ESTANDAR[2][0]), '3': T(CAPAS_ESTANDAR[3][0]), '-1': T('No mostrar') };
+    for (const fila of filas) {
+      new Setting(c).setName(fila.carpeta === '/' ? T('Notas en la raíz del vault') : fila.carpeta).setDesc(T(fila.notas === 1 ? '{0} nota' : '{0} notas', fila.notas))
+        .addDropdown((d) => d.addOptions(opciones).setValue(String(fila.capa)).onChange((v) => { fila.capa = Number(v); }));
+    }
+    new Setting(c)
+      .addButton((b) => b.setButtonText(T('Ahora no')).onClick(async () => { this.plugin.ajustes.configurado = true; await this.plugin.guardar(); this.close(); }))
+      .addButton((b) => b.setButtonText(T('Aplicar')).setCta().onClick(() => this.aplicar(filas)));
+  }
+  async aplicar(filas) {
+    const usadas = [...new Set(filas.filter((f) => f.capa >= 0).map((f) => f.capa))].sort((a, b) => a - b);
+    if (!usadas.length) { new Notice(T('Elige al menos una carpeta para mostrar')); return; }
+    const indice = Object.fromEntries(usadas.map((capa, i) => [capa, i]));
+    const aj = this.plugin.ajustes;
+    aj.capas = usadas.map((capa) => CAPAS_ESTANDAR[capa].map((x) => T(x)).join(' | ')).join('\n');
+    aj.carpetas = filas.filter((f) => f.capa >= 0).map((f) => `${f.carpeta} = ${indice[f.capa]}`).join('\n');
+    aj.configurado = true;
+    await this.plugin.guardar();
+    this.close();
+    this.plugin.refrescarVistas();
+    new Notice(T('Capas aplicadas. Puedes ajustarlas en la configuración del plugin.'));
+  }
+  onClose() { this.contentEl.empty(); }
+}
+
+class VistaMapa extends ItemView {
+  constructor(hoja, plugin) {
+    super(hoja); this.plugin = plugin;
+    this.vista = { x: 0, y: 0, k: 1 }; this.foco = null; this.sobre = null; this.solo = null; this.filtro = '';
+    this.todas = false; this.conRepo = false; this.salud = false; this.reciente = 0;
+    this.camino = null; this.eligiendo = null;
+    this.colapsados = new Set(); this.forzados = new Set(); this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
+    this.punteros = new Map(); this.D = { nodos: [], aristas: [], capas: [], temas: {} };
+    this.N = []; this.E = [];
+  }
+  getViewType() { return VISTA; }
+  getDisplayText() { return 'Mapa neuronal'; }
+  getIcon() { return 'brain-circuit'; }
+
+  async onOpen() {
+    const raiz = this.contentEl; raiz.empty(); raiz.addClass('mn-raiz');
+    this.lienzo = raiz.createEl('canvas', { cls: 'mn-lienzo' });
+    this.ctx = this.lienzo.getContext('2d');
+    const barra = raiz.createDiv('mn-barra'); this.barra = barra;
+    this.marca = barra.createDiv({ cls: 'mn-marca', text: 'Mapa neuronal' });
+    const buscar = barra.createEl('input', { type: 'search', placeholder: T('buscar nota…'), cls: 'mn-buscar' });
+    buscar.addEventListener('input', () => { this.filtro = buscar.value.trim().toLowerCase(); this.pedir(); });
+    buscar.addEventListener('keydown', (e) => { if (e.key !== 'Enter' || !this.filtro) return; const n = this.N.find((x) => (x.titulo + ' ' + x.id).toLowerCase().includes(this.filtro)); if (n) { buscar.value = ''; this.filtro = ''; this.enfocar(n.id, true); } else new Notice(T('No hay notas con ese nombre')); });
+    this.chips = barra.createDiv('mn-chips');
+    const herramientas = barra.createEl('button', { cls: 'mn-chip', text: T('⋯ herramientas') });
+    herramientas.onclick = (e) => this.menuHerramientas(e);
+    this.estado = barra.createDiv('mn-estado');
+    const zoom = raiz.createDiv('mn-zoom');
+    zoom.createEl('button', { text: '−', attr: { 'aria-label': T('Alejar') } }).onclick = () => this.zoom(1 / 1.3);
+    zoom.createEl('button', { text: '⌂', attr: { 'aria-label': T('Encuadrar') } }).onclick = () => this.encuadrar();
+    zoom.createEl('button', { text: '+', attr: { 'aria-label': T('Acercar') } }).onclick = () => this.zoom(1.3);
+    this.guia = raiz.createDiv({ cls: 'mn-guia', text: T('Cada línea es un enlace real. Toca una nota para seguir su camino y leer por qué se conecta. ⋯ para más herramientas.') });
+    this.panel = raiz.createDiv('mn-panel');
+
+    this.registrarGestos();
+    this.observador = new ResizeObserver(() => { const antes = this.escala; this.medir(); if (this.vista.k === antes && !this.dist) this.vista.k = this.escala; this.pedir(); });
+    this.observador.observe(raiz);
+    this.registerEvent(this.app.workspace.on('file-open', (f) => {
+      if (!this.plugin.ajustes.seguirActiva || !f || this.eligiendo) return;
+      const id = this.rep[f.path] || f.path; if (this.porId?.[id]) this.enfocar(id, true);
+    }));
+    await this.recargar();
+    this.encuadrar();
+    if (!this.plugin.ajustes.configurado && !this.plugin.ajustes.carpetas.trim()) new AsistenteCapas(this.app, this.plugin).open();
+    this.iniciarAnimacion();
+  }
+  async onClose() { this.observador?.disconnect(); if (this.anim) window.cancelAnimationFrame(this.anim); this.anim = null; }
+
+  // ── animación: pulsos que viajan por los enlaces, en el sentido en que se compila ──
+  debeAnimar() {
+    return this.plugin.ajustes.animacion && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      && document.visibilityState === 'visible' && this.contentEl.isShown?.() !== false;
+  }
+  iniciarAnimacion() {
+    if (this.anim) return;
+    const intervalo = Platform.isMobile ? 50 : 33;
+    const paso = (t) => {
+      this.anim = window.requestAnimationFrame(paso);
+      if (!this.debeAnimar() || t - (this.ultimoCuadro || 0) < intervalo) return;
+      this.ultimoCuadro = t; this.tiempo = t; this.dibujar();
+    };
+    this.anim = window.requestAnimationFrame(paso);
+  }
+  puntoEn(A, B, u, radial) {
+    const q = (a, b, c, d) => (1 - u) ** 3 * a + 3 * (1 - u) ** 2 * u * b + 3 * (1 - u) * u * u * c + u ** 3 * d;
+    if (radial) { const c = this.porId[this.foco], mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, cx = mx + (c.x - mx) * 0.25, cy = my + (c.y - my) * 0.25;
+      return [(1 - u) ** 2 * A.x + 2 * (1 - u) * u * cx + u * u * B.x, (1 - u) ** 2 * A.y + 2 * (1 - u) * u * cy + u * u * B.y]; }
+    if (A.capa === B.capa) { const dx = 26 + Math.abs(B.y - A.y) * 0.12; return [q(A.x, A.x + dx, B.x + dx, B.x), q(A.y, A.y, B.y, B.y)]; }
+    const mx = (A.x + B.x) / 2; return [q(A.x, mx, mx, B.x), q(A.y, A.y, B.y, B.y)];
+  }
+  dibujarPulsos(ctx, sk, color) {
+    if (!this.debeAnimar()) return;
+    const t = this.tiempo || 0, radial = !!this.dist, pares = [];
+    if (this.camino) for (let i = 0; i < this.camino.length - 1; i++) pares.push([this.camino[i], this.camino[i + 1], i / Math.max(this.camino.length - 1, 1), '#FFFFFF']);
+    else {
+      const c = this.foco || this.sobre;
+      const vis = this.E.filter((e) => this.visible(this.porId[e.a]) && this.visible(this.porId[e.b]));
+      let lista;
+      if (c) lista = vis.filter((e) => e.a === c || e.b === c);
+      else { const cont = vis.filter((e) => Math.abs(this.porId[e.a].capa - this.porId[e.b].capa) === 1 || e.superE), k = Math.max(1, Math.ceil(cont.length / 45)), turno = Math.floor(t / 2600);
+        lista = cont.filter((_, i) => (i * 7 + turno * 13) % k === 0); }
+      for (const [i, e] of lista.entries()) {
+        const A = this.porId[e.a], B = this.porId[e.b];
+        const [de, a] = radial ? (this.dist[e.a] <= this.dist[e.b] ? [e.a, e.b] : [e.b, e.a]) : A.capa <= B.capa ? [e.a, e.b] : [e.b, e.a];
+        pares.push([de, a, (i * 0.618) % 1, color((A.capa >= B.capa ? A : B).tema)]);
+      }
+    }
+    // Radial: una onda que sale del centro, llega al anillo 1 y sigue al anillo 2.
+    if (radial && !this.camino) {
+      pares.length = 0;
+      const vis = this.E.filter((e) => this.visible(this.porId[e.a]) && this.visible(this.porId[e.b]) && Math.abs(this.dist[e.a] - this.dist[e.b]) === 1);
+      const sobre = this.sobre && this.sobre !== this.foco ? this.sobre : null;
+      const turno = Math.floor(t / 3400);
+      for (const nivel of [0, 1]) {
+        let tramo = vis.filter((e) => Math.min(this.dist[e.a], this.dist[e.b]) === nivel);
+        if (sobre) tramo = tramo.filter((e) => e.a === sobre || e.b === sobre || nivel === 0 && (e.a === sobre || e.b === sobre || this.ady[sobre].includes(e.a) || this.ady[sobre].includes(e.b)));
+        const k = Math.max(1, Math.ceil(tramo.length / (nivel === 0 ? 60 : 70)));
+        tramo.filter((_, i) => (i * 7 + turno * 13) % k === 0).forEach((e, i) => {
+          const A = this.porId[e.a], B = this.porId[e.b];
+          const [de, a] = this.dist[e.a] <= this.dist[e.b] ? [e.a, e.b] : [e.b, e.a];
+          pares.push([de, a, nivel + ((i * 0.618) % 1) * 0.25, color((this.dist[e.a] >= this.dist[e.b] ? A : B).tema), true]);
+        });
+      }
+    }
+    const dur = this.camino ? 2200 : 1700, ciclo = 1700 * 2.6;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [de, a, fase, tono, onda] of pares) {
+      if (onda) {
+        const local = (t % ciclo) / 1700 - fase;
+        if (local < 0 || local > 1) continue;
+        const A = this.porId[de], B = this.porId[a]; if (!A || !B) continue;
+        const [x, y] = this.puntoEn(A, B, local, true);
+        ctx.fillStyle = rgba(tono, 0.25); ctx.beginPath(); ctx.arc(x, y, 6 / sk, 0, 6.283); ctx.fill();
+        ctx.fillStyle = rgba('#FFFFFF', 0.95); ctx.beginPath(); ctx.arc(x, y, 1.7 / sk, 0, 6.283); ctx.fill();
+        continue;
+      }
+      const A = this.porId[de], B = this.porId[a]; if (!A || !B) continue;
+      const u = this.camino ? ((t / dur) - fase + 1) % 1 : ((t / dur) + fase) % 1;
+      const [x, y] = this.puntoEn(A, B, u, radial);
+      ctx.fillStyle = rgba(tono, 0.22); ctx.beginPath(); ctx.arc(x, y, 6 / sk, 0, 6.283); ctx.fill();
+      ctx.fillStyle = rgba('#FFFFFF', 0.95); ctx.beginPath(); ctx.arc(x, y, 1.7 / sk, 0, 6.283); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ── datos ──────────────────────────────────────────────────────────────────
+  async recargar() {
+    this.D = await construir(this.app, this.plugin.ajustes);
+    this.base = {}; this.adyBase = {};
+    this.D.nodos.forEach((n) => { this.base[n.id] = n; this.adyBase[n.id] = new Set(); });
+    this.D.aristas.forEach(([a, b]) => { this.adyBase[a].add(b); this.adyBase[b].add(a); });
+    const ultima = this.D.capas.length - 1;
+    this.hubs = {};
+    this.D.nodos.forEach((n) => { if (n.capa === ultima && n.tema && n.propio && !this.hubs[n.tema]) this.hubs[n.tema] = n.id; });
+    [...this.colapsados].forEach((t) => { if (!this.D.temas[t]) this.colapsados.delete(t); });
+    const repos = new Set(this.D.nodos.flatMap((n) => n.repos || [])), arch = this.D.nodos.filter((n) => n.archify && n.archify.length).length;
+    this.marca.setText(T('Mapa neuronal · {0} nodos · {1} enlaces', this.D.nodos.length, this.D.aristas.length) + (repos.size ? T(' · {0} repos', repos.size) : '') + (arch ? T(' · {0} Archify', arch) : ''));
+    if (this.solo && !this.D.temas[this.solo]) this.solo = null;
+    if (this.vacios) this.listaVacios = this.calcularVacios();
+    this.rehacer();
+    if (this.foco && !this.porId[this.foco]) { this.foco = null; this.abrirPanel(null); }
+    this.pintarChips(); this.pintarEstado();
+  }
+
+  // Grafo efectivo: temas colapsados en supernodos y sus enlaces agrupados en superenlaces.
+  rehacer() {
+    const ultima = this.D.capas.length - 1, col = this.colapsados;
+    this.porId = {}; this.rep = {};
+    const virtuales = {};
+    const hubDe = (t) => {
+      if (this.hubs[t]) return this.hubs[t];
+      if (!virtuales[t]) virtuales[t] = { id: 'tema:' + t, capa: ultima, titulo: this.D.temas[t][0], tema: t, propio: true, virtual: true, ruta: '', grado: 0, sinMotivo: 0 };
+      return virtuales[t].id;
+    };
+    const N = [];
+    for (const n of this.D.nodos) {
+      if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
+      else this.rep[n.id] = n.id;
+      N.push(n);
+    }
+    Object.values(virtuales).forEach((v) => N.push(v));
+    N.forEach((n) => { this.porId[n.id] = n; n.agrupados = 0; });
+    for (const n of this.D.nodos) if (this.rep[n.id] !== n.id) this.porId[this.rep[n.id]].agrupados++;
+    const mapa = new Map();
+    this.frase = {};
+    for (const [a, b, m, fr] of this.D.aristas) {
+      if (fr) this.frase[a + '|' + b] = this.frase[b + '|' + a] = fr;
+      const ra = this.rep[a], rb = this.rep[b]; if (ra === rb) continue;
+      const k = ra < rb ? ra + '|' + rb : rb + '|' + ra, agrupada = ra !== a || rb !== b;
+      const e = mapa.get(k);
+      if (e) { e.n++; e.superE = true; } else mapa.set(k, { a: ra, b: rb, m: agrupada ? '' : m, n: 1, superE: agrupada });
+    }
+    this.E = [...mapa.values()];
+    this.ady = {}; this.motivo = {};
+    N.forEach((n) => (this.ady[n.id] = []));
+    for (const e of this.E) {
+      this.ady[e.a].push(e.b); this.ady[e.b].push(e.a);
+      const txt = e.superE ? `${T('{0} enlace(s) agrupados', e.n)}${e.m ? ' · ' + e.m : ''}` : e.m;
+      this.motivo[e.a + '|' + e.b] = this.motivo[e.b + '|' + e.a] = txt;
+    }
+    N.forEach((n) => { if (n.agrupados || n.virtual) n.gradoEf = this.ady[n.id].length; });
+    const orden = Object.fromEntries(Object.keys(this.D.temas).map((t, i) => [t, i]));
+    const posBase = new Map(this.D.nodos.map((x, i) => [x, i]));
+    this.N = N.sort((p, q) => p.capa - q.capa || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99) || (posBase.get(p) ?? 0) - (posBase.get(q) ?? 0));
+    // Revelado progresivo: cada capa muestra sus notas más conectadas; el resto se trae buscando o tocando.
+    const max = Math.max(10, Number(this.plugin.ajustes.maxPorCapa) || 150);
+    this.ocultas = {};
+    this.D.capas.forEach((_, capa) => {
+      const col = this.N.filter((x) => x.capa === capa);
+      const rango = col.slice().sort((a, b) => (this.ady[b.id]?.length || 0) - (this.ady[a.id]?.length || 0));
+      const visibles = new Set(rango.slice(0, max).map((x) => x.id));
+      let ocultas = 0;
+      for (const x of col) { x.oculto = !visibles.has(x.id) && !this.forzados.has(x.id) && !x.agrupados && !x.virtual; if (x.oculto) ocultas++; }
+      this.ocultas[capa] = ocultas;
+    });
+    if (this.foco && !this.porId[this.foco]) this.foco = this.rep[this.foco] || null;
+    this.medir(); this.pedir();
+  }
+
+  // Vacíos: pares de temas con muchos menos enlaces de los esperables para su tamaño.
+  calcularVacios() {
+    const ultima = this.D.capas.length - 1;
+    const util = (n) => n && n.propio && !n.fuente && n.capa !== ultima;
+    const suma = {}, notas = {}, entre = {};
+    let m = 0;
+    for (const [a, b] of this.D.aristas) {
+      const A = this.base[a], B = this.base[b]; if (!util(A) || !util(B)) continue;
+      m++; suma[A.tema] = (suma[A.tema] || 0) + 1; suma[B.tema] = (suma[B.tema] || 0) + 1;
+      if (A.tema !== B.tema) { const k = [A.tema, B.tema].sort().join('|'); entre[k] = (entre[k] || 0) + 1; }
+    }
+    this.D.nodos.forEach((n) => { if (util(n)) (notas[n.tema] = notas[n.tema] || []).push(n); });
+    const temas = Object.keys(notas).filter((t) => notas[t].length >= 3), res = [];
+    for (let i = 0; i < temas.length; i++) for (let j = i + 1; j < temas.length; j++) {
+      const ti = temas[i], tj = temas[j], k = [ti, tj].sort().join('|');
+      const real = entre[k] || 0, esperado = m ? (suma[ti] * suma[tj]) / (2 * m) : 0;
+      if (esperado < 2 || real >= esperado * 0.5) continue;
+      const candidatos = [];
+      for (const a of notas[ti]) for (const b of notas[tj]) {
+        if (this.adyBase[a.id].has(b.id)) continue;
+        let comunes = 0; for (const v of this.adyBase[a.id]) if (this.adyBase[b.id].has(v) && util(this.base[v])) comunes++;
+        if (comunes) candidatos.push({ a: a.id, b: b.id, comunes });
+      }
+      candidatos.sort((x, y) => y.comunes - x.comunes);
+      res.push({ ti, tj, real, esperado, faltan: esperado - real, candidatos: candidatos.slice(0, 3) });
+    }
+    return res.sort((x, y) => y.faltan - x.faltan).slice(0, 6);
+  }
+
+  // ── barra y menú ───────────────────────────────────────────────────────────
+  pintarChips() {
+    this.chips.empty();
+    for (const [id, [nombre, c]] of Object.entries(this.D.temas)) {
+      if (!this.D.nodos.some((n) => n.tema === id)) continue;
+      const b = this.chips.createEl('button', { cls: 'mn-chip' + (this.solo === id ? ' activo' : this.solo ? ' apagado' : '') });
+      b.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': c }); b.appendText((this.colapsados.has(id) ? '◉ ' : '') + nombre);
+      b.onclick = () => { this.solo = this.solo === id ? null : id; this.pintarChips(); this.pedir(); };
+      b.oncontextmenu = (e) => { e.preventDefault(); this.alternarColapso(id); };
+    }
+  }
+  pintarEstado() {
+    const t = [];
+    if (this.radial) t.push(this.foco ? T('◎ radial') : T('◎ radial: toca una nota'));
+    if (this.colapsados.size) t.push(T('◉ {0} tema(s) colapsado(s)', this.colapsados.size));
+    if (this.vacios) t.push(T('⌁ vacíos'));
+    if (this.salud) t.push(T('❤︎ salud'));
+    if (this.reciente) t.push(T('◷ últimos {0} días', this.reciente));
+    if (this.conRepo) t.push(T('◯ con repositorio'));
+    if (this.todas) t.push(T('todas las conexiones'));
+    if (this.eligiendo) t.push(this.eligiendo.desde ? T('→ toca la nota de destino') : T('→ toca la nota de origen'));
+    this.estado.setText(t.join(' · '));
+  }
+  alternarColapso(t) {
+    this.colapsados.has(t) ? this.colapsados.delete(t) : this.colapsados.add(t);
+    this.camino = null; this.sugerencia = null;
+    this.rehacer(); this.pintarChips(); this.pintarEstado();
+    const n = this.porId[this.rep[this.hubs[t]] || 'tema:' + t] || this.porId[this.hubs[t]];
+    if (n && this.colapsados.has(t)) { this.foco = n.id; this.abrirPanel(n); } else if (this.foco && !this.porId[this.foco]) { this.foco = null; this.abrirPanel(null); }
+  }
+  menuHerramientas(e) {
+    const m = new Menu();
+    m.addItem((i) => i.setTitle(T('Camino entre dos notas')).setIcon('route').onClick(() => {
+      this.camino = null; this.sugerencia = null; this.eligiendo = { desde: null }; this.foco = null; this.abrirPanel(null);
+      new Notice(T('Toca la nota de origen')); this.pintarEstado(); this.pedir();
+    }));
+    m.addItem((i) => i.setTitle(this.radial ? T('Volver a la vista por capas') : T('Vista radial (la nota al centro)')).setIcon('orbit').onClick(() => {
+      this.radial = !this.radial;
+      if (this.radial && !this.foco) new Notice(T('Toca una nota para ponerla al centro'));
+      this.medir(); this.encuadrar(); this.pintarEstado();
+    }));
+    m.addItem((i) => i.setTitle(this.vacios ? T('Ocultar vacíos entre temas') : T('Vacíos entre temas')).setIcon('unlink').onClick(() => {
+      this.vacios = !this.vacios; this.sugerencia = null;
+      if (this.vacios) { this.listaVacios = this.calcularVacios(); this.panelVacios(); } else this.abrirPanel(this.foco ? this.porId[this.foco] : null);
+      this.pintarEstado(); this.pedir();
+    }));
+    m.addItem((i) => i.setTitle(this.salud ? T('Quitar modo salud') : T('Modo salud')).setIcon('heart-pulse').onClick(() => {
+      this.salud = !this.salud; if (this.salud) this.informeSalud(); this.pintarEstado(); this.pedir();
+    }));
+    m.addSeparator();
+    for (const [id, [nombre]] of Object.entries(this.D.temas)) {
+      if (!this.D.nodos.some((n) => n.tema === id)) continue;
+      m.addItem((i) => i.setTitle(T('{0} {1}', this.colapsados.has(id) ? T('Expandir') : T('Colapsar'), nombre)).setIcon(this.colapsados.has(id) ? 'maximize-2' : 'minimize-2').onClick(() => this.alternarColapso(id)));
+    }
+    if (this.colapsados.size) m.addItem((i) => i.setTitle(T('Expandir todos')).setIcon('expand').onClick(() => { this.colapsados.clear(); this.rehacer(); this.pintarChips(); this.pintarEstado(); }));
+    m.addSeparator();
+    for (const d of [0, 7, 30]) m.addItem((i) => i.setTitle(d ? T('Actualizado en {0} días', d) : T('Toda la actividad')).setChecked(this.reciente === d).setIcon('clock').onClick(() => { this.reciente = d; this.pintarEstado(); this.pedir(); }));
+    m.addItem((i) => i.setTitle(T('Solo notas con repositorio')).setChecked(this.conRepo).setIcon('github').onClick(() => { this.conRepo = !this.conRepo; this.pintarEstado(); this.pedir(); }));
+    m.addItem((i) => i.setTitle(T('Mostrar todas las conexiones')).setChecked(this.todas).setIcon('git-fork').onClick(() => { this.todas = !this.todas; this.pintarEstado(); this.pedir(); }));
+    m.addSeparator();
+    m.addItem((i) => i.setTitle(T('Exportar imagen (PNG)')).setIcon('image-down').onClick(() => this.exportar()));
+    m.addItem((i) => i.setTitle(T('Recargar el mapa')).setIcon('refresh-cw').onClick(() => this.recargar()));
+    m.addItem((i) => i.setTitle(T('Asistente de capas')).setIcon('layers').onClick(() => new AsistenteCapas(this.app, this.plugin).open()));
+    m.showAtMouseEvent(e);
+  }
+
+  // ── geometría ──────────────────────────────────────────────────────────────
+  angosto() { return this.W < 640 || Platform.isPhone; }
+  medir() {
+    const r = this.contentEl.getBoundingClientRect(); this.W = r.width; this.H = r.height;
+    if (!this.W || !this.lienzo) return;
+    this.dpr = window.devicePixelRatio || 1;
+    this.lienzo.width = this.W * this.dpr; this.lienzo.height = this.H * this.dpr;
+    this.dist = null;
+    if (this.radial && this.foco && this.porId[this.foco]) return this.medirRadial();
+    // En el celular el mapa se arma más ancho que la pantalla y se escala para caber. La altura se arma
+    // en la MISMA escala (H / escala): si no, al achicar queda aplastado en la mitad de arriba.
+    const n = Math.max(this.D.capas.length, 2);
+    this.anchoLogico = Math.max(this.W, this.angosto() ? 190 * n : 0);
+    this.escala = this.W / this.anchoLogico;
+    const barraAbajo = this.barra ? this.barra.getBoundingClientRect().bottom - r.top : 0;
+    const Hl = this.H / this.escala, arriba = Math.max(this.angosto() ? 150 : 118, barraAbajo + 52) / this.escala, abajo = (this.angosto() ? 70 : 90) / this.escala;
+    const reserva = !this.angosto() && this.panel?.hasClass('abierto') ? Math.min(400, this.W * 0.32) / this.escala : 0;
+    const margen = this.angosto() ? 70 : Math.max(120, this.W * 0.1), paso = (this.anchoLogico - reserva - 2 * margen) / (n - 1);
+    this.capas = this.D.capas.map((c, i) => {
+      const col = this.N.filter((x) => x.capa === i && !x.oculto), alto = Hl - arriba - abajo;
+      const gap = Math.min(alto / Math.max(col.length, 1), 28), y0 = arriba + (alto - gap * (col.length - 1)) / 2;
+      col.forEach((x, j) => { x.x = margen + i * paso; x.y = y0 + j * gap; });
+      return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + gap * Math.max(col.length - 1, 0) + 16, def: c };
+    });
+  }
+  medirRadial() {
+    this.anchoLogico = this.W; this.capas = [];
+    const dist = { [this.foco]: 0 }, padre = {}, cola = [this.foco];
+    while (cola.length) { const u = cola.shift(); if (dist[u] >= 2) continue; for (const v of this.ady[u]) if (!(v in dist)) { dist[v] = dist[u] + 1; padre[v] = u; cola.push(v); } }
+    this.dist = dist;
+    const cx = this.W / 2, cy = this.H * (this.angosto() ? 0.42 : 0.52), paso = Math.min(this.W, this.H) * (this.angosto() ? 0.15 : 0.16);
+    const orden = Object.fromEntries(Object.keys(this.D.temas).map((t, i) => [t, i]));
+    const angulo = { [this.foco]: 0 };
+    const centro = this.porId[this.foco]; centro.x = cx; centro.y = cy;
+    this.anillos = [];
+    for (let d = 1; d <= 2; d++) {
+      let anillo = this.N.filter((n) => dist[n.id] === d);
+      if (anillo.length > 80) {
+        const quedan = new Set(anillo.slice().sort((a, b) => this.ady[b.id].length - this.ady[a.id].length).slice(0, 80).map((n) => n.id));
+        for (const n of anillo) if (!quedan.has(n.id) && !this.forzados.has(n.id)) delete dist[n.id];
+        anillo = anillo.filter((n) => n.id in dist);
+      }
+      if (!anillo.length) break;
+      anillo.sort((p, q) => (d > 1 ? (angulo[padre[p.id]] ?? 0) - (angulo[padre[q.id]] ?? 0) : 0) || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99));
+      const radio = paso * d * (1 + Math.min(0.6, anillo.length / 90));
+      anillo.forEach((n, i) => { const a = (i / anillo.length) * Math.PI * 2 - Math.PI / 2; angulo[n.id] = a; n.x = cx + Math.cos(a) * radio; n.y = cy + Math.sin(a) * radio; });
+      this.anillos.push({ d, radio, n: anillo.length, cx, cy });
+    }
+  }
+  encuadrar() { this.vista = { x: 0, y: 0, k: this.radial && this.dist ? 1 : this.escala || 1 }; this.pedir(); }
+  zoom(f, cx = this.W / 2, cy = this.H / 2) {
+    const v = this.vista, k = Math.min(6, Math.max(0.3, v.k * f));
+    v.x = cx - ((cx - v.x) * k) / v.k; v.y = cy - ((cy - v.y) * k) / v.k; v.k = k; this.pedir();
+  }
+  enfocar(id, centrar) {
+    let n = this.porId[id]; if (!n) return;
+    if (n.oculto) { this.forzados.add(id); this.rehacer(); n = this.porId[id]; }
+    this.foco = id; this.camino = null; this.sugerencia = null;
+    if (this.radial) { this.medir(); this.encuadrar(); this.pintarEstado(); }
+    this.abrirPanel(n);
+    if (centrar && !this.radial) { const v = this.vista; v.x = this.W * (this.angosto() ? 0.5 : 0.42) - n.x * v.k; v.y = this.H * (this.angosto() ? 0.3 : 0.5) - n.y * v.k; }
+    this.pedir();
+  }
+  pedir() { if (!this.pendiente) { this.pendiente = true; window.requestAnimationFrame(() => { this.pendiente = false; this.dibujar(); }); } }
+  visible(n) {
+    if (this.dist) { if (!(n.id in this.dist)) return false; }
+    else if (n.oculto) return false;
+    return (!this.conRepo || (n.repos && n.repos.length) || n.capa === this.D.capas.length - 1)
+      && (!this.solo || n.tema === this.solo)
+      && (!this.filtro || (n.titulo + ' ' + n.id).toLowerCase().includes(this.filtro));
+  }
+  problemas(n) {
+    if (n.fuente || n.virtual) return [];
+    const p = [];
+    if (n.grado === 0) p.push(T('huérfana: ninguna nota la enlaza ni enlaza a otra'));
+    if (!n.propio && this.plugin.ajustes.propiedadTema && n.capa !== 0) p.push(T('sin propiedad `{0}`', this.plugin.ajustes.propiedadTema));
+    if (n.sinMotivo) p.push(T('{0} enlace(s) sin motivo escrito', n.sinMotivo));
+    return p;
+  }
+  activo(n) { return !this.reciente || n.agrupados || diasDesde(n.updated) <= this.reciente; }
+  traza(id) {
+    const nivel = { [id]: 0 }, cola = [id];
+    while (cola.length) { const u = cola.shift(); if (nivel[u] >= 2) continue; for (const v of this.ady[u]) if (!(v in nivel)) { nivel[v] = nivel[u] + 1; cola.push(v); } }
+    return nivel;
+  }
+  // Prefiere caminos por notas de conocimiento: la capa de entrada (diario, fuentes) solo como último recurso.
+  rutaMasCorta(a, b) {
+    const buscar = (evitarEntrada) => {
+      const prev = { [a]: null }, cola = [a];
+      while (cola.length) {
+        const u = cola.shift(); if (u === b) break;
+        for (const v of this.ady[u]) {
+          if (v in prev) continue;
+          if (evitarEntrada && v !== b && this.porId[v].capa === 0) continue;
+          prev[v] = u; cola.push(v);
+        }
+      }
+      if (!(b in prev)) return null;
+      const ruta = []; for (let u = b; u !== null; u = prev[u]) ruta.unshift(u);
+      return ruta;
+    };
+    return buscar(true) || buscar(false);
+  }
+
+  // ── dibujo ─────────────────────────────────────────────────────────────────
+  dibujar() {
+    const { ctx, W, H, vista } = this; if (!ctx || !W || (!this.capas && !this.dist)) return;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const g = ctx.createRadialGradient(W * 0.55, H * 0.42, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.85);
+    g.addColorStop(0, '#1B1D52'); g.addColorStop(0.5, '#0C1233'); g.addColorStop(1, '#04060F');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    if (!this.estrellas) this.estrellas = Array.from({ length: 180 }, () => [Math.random(), Math.random(), Math.random() * 1.1 + 0.2, Math.random() * 0.5 + 0.15]);
+    const brillo = this.debeAnimar(), tt = this.tiempo || 0;
+    for (const [x, y, r, a] of this.estrellas) { ctx.fillStyle = `rgba(205,215,255,${brillo ? a * (0.7 + 0.3 * Math.sin(tt / 900 + x * 40)) : a})`; ctx.beginPath(); ctx.arc(x * W, y * H, r, 0, 6.283); ctx.fill(); }
+
+    ctx.save(); ctx.translate(vista.x, vista.y); ctx.scale(vista.k, vista.k);
+    if (!this.familia) this.familia = getComputedStyle(this.contentEl).getPropertyValue('--font-monospace').trim() || 'ui-monospace, Menlo, monospace';
+    const sk = Math.sqrt(vista.k), f = (peso, tam) => `${peso} ${tam / sk}px ${this.familia}`;
+    const color = (t) => (this.D.temas[t] ? this.D.temas[t][1] : '#C9D1FF');
+    const radial = !!this.dist, ultima = this.D.capas.length - 1;
+    const enCamino = this.camino ? new Set(this.camino) : null;
+    const centro = enCamino || radial ? (radial ? this.foco : null) : this.foco || this.sobre;
+    const nivel = centro && !radial ? this.traza(centro) : null;
+    const sobreRadial = radial && this.sobre ? this.sobre : null;
+
+    if (radial) {
+      for (const a of this.anillos) {
+        ctx.strokeStyle = 'rgba(170,185,255,.16)'; ctx.lineWidth = 1 / vista.k; ctx.setLineDash([4 / vista.k, 4 / vista.k]);
+        ctx.beginPath(); ctx.arc(a.cx, a.cy, a.radio, 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#FF6B6B'; ctx.font = f(400, 10.5); ctx.fillText(`${a.d} salto${a.d > 1 ? 's' : ''} · ${a.n}`, a.cx + 6, a.cy - a.radio - 6);
+      }
+    } else {
+      this.capas.forEach((c, i) => {
+        ctx.strokeStyle = 'rgba(170,185,255,.2)'; ctx.lineWidth = 1 / vista.k; ctx.strokeRect(c.x - 14, c.y0, 28, c.y1 - c.y0);
+        ctx.textAlign = i === ultima ? 'right' : 'left'; const lx = i === ultima ? c.x + 14 : c.x - 14;
+        ctx.fillStyle = '#FFFFFF'; ctx.font = f(600, 12.5); ctx.fillText(`${c.def[0]} · ${c.def[1]}`, lx, c.y0 - 22);
+        ctx.fillStyle = '#FF6B6B'; ctx.font = f(400, 10.5); ctx.fillText(`${T('{0} nodos', c.n)}${this.ocultas?.[i] ? T(' · +{0} ocultas', this.ocultas[i]) : ''}${c.def[2] ? ' · ' + c.def[2] : ''}`, lx, c.y0 - 8);
+        ctx.textAlign = 'left';
+      });
+    }
+
+    const curva = (A, B, alfa, grosor, tono, discontinua) => {
+      ctx.strokeStyle = rgba(tono, alfa); ctx.lineWidth = grosor / vista.k; if (discontinua) ctx.setLineDash([5 / vista.k, 4 / vista.k]);
+      ctx.beginPath(); ctx.moveTo(A.x, A.y);
+      if (radial) { const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, c = this.porId[this.foco]; ctx.quadraticCurveTo(mx + (c.x - mx) * 0.25, my + (c.y - my) * 0.25, B.x, B.y); }
+      else {
+        const L = A.x <= B.x ? A : B, R = L === A ? B : A; ctx.moveTo(L.x, L.y);
+        if (L.capa === R.capa) { const dx = 26 + Math.abs(R.y - L.y) * 0.12; ctx.bezierCurveTo(L.x + dx, L.y, R.x + dx, R.y, R.x, R.y); }
+        else { const mx = (L.x + R.x) / 2; ctx.bezierCurveTo(mx, L.y, mx, R.y, R.x, R.y); }
+      }
+      ctx.stroke(); if (discontinua) ctx.setLineDash([]);
+    };
+    ctx.globalCompositeOperation = 'lighter';
+    for (const e of this.E) {
+      const A = this.porId[e.a], B = this.porId[e.b]; if (!this.visible(A) || !this.visible(B)) continue;
+      const tono = color((A.capa >= B.capa ? A : B).tema), grueso = e.superE ? Math.min(4, 0.8 + Math.sqrt(e.n) * 0.7) : 0;
+      if (enCamino) {
+        const i = this.camino.indexOf(e.a), j = this.camino.indexOf(e.b);
+        if (i >= 0 && j >= 0 && Math.abs(i - j) === 1) curva(A, B, 1, 2.4, '#FFFFFF');
+        else if (Math.abs(A.capa - B.capa) === 1) curva(A, B, 0.02, 0.6, tono);
+        continue;
+      }
+      if (radial) {
+        const da = this.dist[e.a], db = this.dist[e.b], toca = sobreRadial && (e.a === sobreRadial || e.b === sobreRadial);
+        const cerca = Math.min(da, db) === 0;
+        if (Math.abs(da - db) > 1) continue;
+        curva(A, B, toca ? 0.95 : cerca ? 0.55 : da === db ? 0.05 : 0.18, toca || cerca ? 1.3 + grueso : 0.7 + grueso, tono);
+        continue;
+      }
+      const contiguas = Math.abs(A.capa - B.capa) === 1, tenue = this.reciente && !(this.activo(A) && this.activo(B));
+      if (nivel) {
+        const na = nivel[e.a], nb = nivel[e.b];
+        if (na === undefined || nb === undefined) { if (contiguas || e.superE) curva(A, B, 0.025, 0.6 + grueso, tono); continue; }
+        if (na === 0 || nb === 0) curva(A, B, 0.9, 1.5 + grueso, this.salud && !e.m && !e.superE ? '#FF6B6B' : tono);
+        else if (contiguas || e.superE) curva(A, B, 0.22, 0.8 + grueso, tono);
+      } else if (contiguas || this.todas || e.superE) {
+        const rojo = this.salud && !e.m && !e.superE && !A.fuente && !B.fuente;
+        curva(A, B, tenue ? 0.03 : rojo ? 0.35 : e.superE ? 0.3 : contiguas ? 0.2 : 0.07, (rojo ? 0.9 : 0.75) + grueso, rojo ? '#FF6B6B' : tono);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    this.dibujarPulsos(ctx, sk, color);
+
+    if (this.vacios && !enCamino && !radial) {
+      for (const v of this.listaVacios) {
+        const A = this.porId[this.rep[this.hubs[v.ti]] || 'tema:' + v.ti], B = this.porId[this.rep[this.hubs[v.tj]] || 'tema:' + v.tj];
+        if (!A || !B) continue;
+        const dx = 70 + Math.abs(B.y - A.y) * 0.35;
+        ctx.strokeStyle = rgba('#FF6B6B', 0.85); ctx.lineWidth = Math.min(3, 0.8 + v.faltan * 0.15) / vista.k; ctx.setLineDash([6 / vista.k, 5 / vista.k]);
+        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.bezierCurveTo(A.x + dx, A.y, B.x + dx, B.y, B.x, B.y); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    if (this.sugerencia) {
+      const A = this.porId[this.rep[this.sugerencia[0]]], B = this.porId[this.rep[this.sugerencia[1]]];
+      if (A && B) curva(A, B, 1, 2, '#FFFFFF', true);
+    }
+
+    const rotulos = [];
+    for (const n of this.N) {
+      if (!this.visible(n)) continue;
+      const enSug = this.sugerencia && (this.rep[this.sugerencia[0]] === n.id || this.rep[this.sugerencia[1]] === n.id);
+      const activo = enCamino ? enCamino.has(n.id) : this.sugerencia ? enSug : (!nivel || n.id in nivel) && this.activo(n);
+      const base = n.capa === ultima || n.agrupados ? 6.5 + Math.min(8, Math.sqrt(n.agrupados || 0) * 1.6) : 1.8 + Math.min(4.2, Math.sqrt(n.grado) * 0.6);
+      const r = (radial && n.id === this.foco ? 9 : base) / sk;
+      ctx.fillStyle = rgba(color(n.tema), activo ? 1 : 0.16); ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
+      if (n.agrupados) { ctx.strokeStyle = rgba(color(n.tema), 0.5); ctx.lineWidth = 2 / vista.k; ctx.beginPath(); ctx.arc(n.x, n.y, r + 4 / vista.k, 0, 6.283); ctx.stroke(); }
+      if (this.reciente && activo && !n.agrupados && diasDesde(n.updated) <= this.reciente) { ctx.strokeStyle = rgba('#FFFFFF', 0.5); ctx.lineWidth = 3 / vista.k; ctx.beginPath(); ctx.arc(n.x, n.y, r + 4 / vista.k, 0, 6.283); ctx.stroke(); }
+      if (n.repos && n.repos.length) { ctx.strokeStyle = rgba('#FFFFFF', activo ? 0.75 : 0.2); ctx.lineWidth = 1 / vista.k; ctx.beginPath(); ctx.arc(n.x, n.y, r + 2.5 / vista.k, 0, 6.283); ctx.stroke(); }
+      if (n.archify && n.archify.length) { ctx.fillStyle = rgba('#FF6B6B', activo ? 1 : 0.2); ctx.beginPath(); ctx.arc(n.x + r + 3 / vista.k, n.y - r - 2 / vista.k, 2.2 / sk, 0, 6.283); ctx.fill(); }
+      if (this.salud && this.problemas(n).length) { ctx.strokeStyle = '#FF6B6B'; ctx.lineWidth = 1.6 / vista.k; ctx.setLineDash([3 / vista.k, 2 / vista.k]); ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / vista.k, 0, 6.283); ctx.stroke(); ctx.setLineDash([]); }
+      if (n.id === centro || (this.eligiendo && this.eligiendo.desde === n.id)) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / vista.k; ctx.beginPath(); ctx.arc(n.x, n.y, r + 6 / vista.k, 0, 6.283); ctx.stroke(); }
+      if (n.capa === ultima || n.agrupados || enSug || (enCamino && enCamino.has(n.id)) || (nivel && nivel[n.id] <= 1) || (radial && this.dist[n.id] <= 1) || n.id === sobreRadial || vista.k > 2.2) rotulos.push(n);
+    }
+    rotulos.sort((p, q) => (nivel ? (nivel[p.id] ?? 3) - (nivel[q.id] ?? 3) : 0) || p.y - q.y);
+    const puestos = [];
+    for (const n of rotulos) {
+      const fijo = n.id === centro || n.id === sobreRadial || (enCamino && enCamino.has(n.id)) || n.agrupados || (!radial && n.capa === ultima);
+      if (!fijo && puestos.some((p) => Math.abs(p.y - n.y) < 15 / vista.k && Math.abs(p.x - n.x) < 160 / vista.k)) continue;
+      puestos.push(n);
+      let texto = (n.capa === ultima || n.agrupados) && this.D.temas[n.tema] ? this.D.temas[n.tema][0] : n.titulo;
+      if (n.agrupados) texto += ` · ${n.agrupados + 1} notas`;
+      const fuerte = fijo || n.capa === ultima, tam = n.capa === ultima || n.agrupados ? 13 : 11.5;
+      ctx.font = f(fuerte ? 600 : 500, tam);
+      const w = ctx.measureText(texto).width, pad = 4 / vista.k, h = tam / sk + 6 / vista.k, r = 12 / vista.k;
+      const izquierda = radial ? n.x < this.porId[this.foco].x - 1 : n.capa === ultima;
+      const x = izquierda ? n.x - r - w - pad * 2 : n.x + r, y = n.y - h / 2;
+      ctx.fillStyle = 'rgba(6,10,24,.86)'; ctx.fillRect(x, y, w + pad * 2, h);
+      ctx.fillStyle = fuerte ? '#FFFFFF' : 'rgba(230,234,255,.9)'; ctx.fillText(texto, x + pad, y + h - 5 / vista.k);
+    }
+    ctx.restore();
+  }
+
+  // ── gestos ─────────────────────────────────────────────────────────────────
+  nodoEn(px, py) {
+    const v = this.vista, x = (px - v.x) / v.k, y = (py - v.y) / v.k;
+    let mejor = null, dmin = (Platform.isMobile ? 22 : 14) / v.k;
+    for (const n of this.N) { if (!this.visible(n)) continue; const d = Math.hypot(n.x - x, n.y - y); if (d < dmin) { dmin = d; mejor = n; } }
+    return mejor;
+  }
+  registrarGestos() {
+    const el = this.lienzo, local = (e) => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    el.addEventListener('pointerdown', (e) => {
+      el.setPointerCapture(e.pointerId); const [x, y] = local(e);
+      this.punteros.set(e.pointerId, { x, y });
+      if (this.punteros.size === 1) this.toque = { x, y, vx: this.vista.x, vy: this.vista.y, movio: false, t: Date.now() };
+      if (this.punteros.size === 2) { const [p, q] = [...this.punteros.values()]; this.pellizco = { d: Math.hypot(p.x - q.x, p.y - q.y), k: this.vista.k }; this.toque = null; }
+    });
+    el.addEventListener('pointermove', (e) => {
+      const [x, y] = local(e);
+      if (this.punteros.has(e.pointerId)) this.punteros.set(e.pointerId, { x, y });
+      if (this.pellizco && this.punteros.size === 2) {
+        const [p, q] = [...this.punteros.values()], d = Math.hypot(p.x - q.x, p.y - q.y);
+        this.zoom((this.pellizco.k * d) / this.pellizco.d / this.vista.k, (p.x + q.x) / 2, (p.y + q.y) / 2); return;
+      }
+      const t = this.toque;
+      if (t) { if (Math.hypot(x - t.x, y - t.y) > 6) t.movio = true; if (t.movio) { this.vista.x = t.vx + x - t.x; this.vista.y = t.vy + y - t.y; this.pedir(); } return; }
+      if (e.pointerType === 'mouse') { const n = this.nodoEn(x, y), id = n ? n.id : null; if (id !== this.sobre) { this.sobre = id; el.toggleClass('mn-sobre-nodo', !!n); this.pedir(); } }
+    });
+    const soltar = (e) => {
+      this.punteros.delete(e.pointerId); if (this.punteros.size < 2) this.pellizco = null;
+      const t = this.toque; this.toque = null;
+      if (!t || t.movio || e.type === 'pointercancel') return;
+      const [x, y] = local(e), n = this.nodoEn(x, y);
+      if (this.eligiendo) return this.elegirCamino(n);
+      if (n && (Date.now() - t.t > 550) && n.tema && (n.agrupados || n.capa === this.D.capas.length - 1)) return this.alternarColapso(n.tema);
+      this.camino = null; this.sugerencia = null;
+      if (!n) { this.foco = null; this.abrirPanel(this.vacios ? 'vacios' : null); if (this.radial) { this.medir(); this.pintarEstado(); } this.pedir(); return; }
+      this.enfocar(n.id, false);
+      const px = n.x * this.vista.k + this.vista.x;
+      if (!this.angosto() && px > this.W - 430) { this.vista.x -= px - (this.W - 460); this.pedir(); }
+    };
+    el.addEventListener('pointerup', soltar); el.addEventListener('pointercancel', soltar);
+    el.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = local(e); this.zoom(Math.exp(-e.deltaY * 0.0015), x, y); }, { passive: false });
+  }
+  elegirCamino(n) {
+    if (!n) return;
+    if (!this.eligiendo.desde) { this.eligiendo.desde = n.id; new Notice(T('Ahora toca la nota de destino')); this.pintarEstado(); this.pedir(); return; }
+    const ruta = this.rutaMasCorta(this.eligiendo.desde, n.id);
+    this.eligiendo = null; this.pintarEstado();
+    if (!ruta) { new Notice(T('No hay camino entre esas dos notas')); this.pedir(); return; }
+    if (this.radial) { this.radial = false; this.medir(); this.encuadrar(); this.pintarEstado(); }
+    this.camino = ruta; this.foco = null; this.panelCamino(ruta); this.pedir();
+  }
+
+  // ── paneles ────────────────────────────────────────────────────────────────
+  cabecera(p, ojo, titulo, sub) {
+    const cab = p.createDiv('mn-cab');
+    cab.createDiv({ cls: 'mn-ojo', text: ojo });
+    cab.createEl('h3', { text: titulo });
+    if (sub) cab.createDiv({ cls: 'mn-ruta', text: sub });
+    return cab.createDiv('mn-acciones');
+  }
+  cerrarBoton(acciones) {
+    acciones.createEl('button', { text: T('Cerrar') }).onclick = () => { this.foco = null; this.camino = null; this.sugerencia = null; if (this.radial) this.medir(); this.abrirPanel(null); this.pintarEstado(); this.pedir(); };
+  }
+  rol(n) {
+    const ultima = this.D.capas.length - 1, vec = this.ady[n.id].map((v) => this.porId[v]);
+    const temas = [...new Set(vec.filter((v) => v.tema && v.tema !== n.tema && !v.fuente).map((v) => v.tema))];
+    const grados = this.N.filter((x) => !x.fuente && x.capa !== ultima).map((x) => this.ady[x.id].length).sort((x, y) => y - x);
+    const umbral = grados[Math.floor(grados.length * 0.1)] || Infinity, out = [];
+    if (n.agrupados) out.push(T('Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.', n.agrupados + 1));
+    else if (n.capa === ultima) out.push(T('Página de síntesis: resume el tema y de ella cuelgan sus notas.'));
+    else if (!vec.length) out.push(T('Aislada: ninguna nota la enlaza y ella no enlaza a ninguna.'));
+    else {
+      if (this.ady[n.id].length >= umbral) out.push(T('Nota central: está entre el 10 % más conectado del cerebro.'));
+      if (temas.length >= 2) out.push(T('Puente entre {0} temas: conecta {1} con {2}.', temas.length + 1, this.D.temas[n.tema]?.[0] || T('su tema'), temas.map((t) => this.D.temas[t]?.[0] || t).join(', ')));
+      else if (temas.length === 1) out.push(T('Conecta {0} con {1}.', this.D.temas[n.tema]?.[0] || T('su tema'), this.D.temas[temas[0]]?.[0] || temas[0]));
+      else out.push(T('Vive dentro de {0}: todas sus conexiones son del mismo tema.', this.D.temas[n.tema]?.[0] || T('su tema')));
+    }
+    return out;
+  }
+  boton(acciones, icono, texto, accion, primario) {
+    const b = acciones.createEl('button', { cls: 'mn-btn' + (primario ? ' mn-btn-primario' : ''), attr: { 'aria-label': texto, title: texto } });
+    const i = b.createSpan('mn-btn-icono'); try { setIcon(i, icono); } catch { i.remove(); }
+    b.createSpan({ text: texto }); b.onclick = accion; return b;
+  }
+  abrirPanel(n) {
+    if (n === 'vacios') return this.panelVacios();
+    const p = this.panel, estaba = p.hasClass('abierto'); p.empty();
+    if (!n) { p.removeClass('abierto'); this.guia.show(); if (estaba) { this.medir(); this.pedir(); } return; }
+    this.guia.hide();
+    const ultima = this.D.capas.length - 1, capa = this.D.capas[n.capa], vec = this.ady[n.id].map((v) => this.porId[v]);
+    const nombreTema = this.D.temas[n.tema] ? this.D.temas[n.tema][0] : T('sin tema'), colorTema = this.D.temas[n.tema]?.[1] || '#C9D1FF';
+
+    const cab = p.createDiv('mn-cab');
+    const ojo = cab.createDiv('mn-ojo2');
+    ojo.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': colorTema });
+    ojo.createSpan({ text: n.agrupados ? `Supernodo · ${nombreTema}` : `${nombreTema} · ${capa[1]}` });
+    cab.createEl('h3', { text: n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
+    const meta = [];
+    if (!n.virtual) meta.push(n.fuente ? 'fuente original' : n.ruta.split('/').slice(-2).join('/'));
+    meta.push(`${vec.length} conexiones`);
+    if (n.updated) meta.push(`actualizada ${n.updated.slice(0, 10)}`);
+    cab.createDiv({ cls: 'mn-meta', text: meta.join(' · ') });
+    const acciones = cab.createDiv('mn-acciones');
+    if (!n.fuente && !n.virtual) this.boton(acciones, 'file-text', 'Abrir', () => this.abrirNota(n.ruta), true);
+    if (!this.radial) this.boton(acciones, 'orbit', T('Radial'), () => { this.radial = true; this.foco = n.id; this.medir(); this.encuadrar(); this.pintarEstado(); });
+    this.boton(acciones, 'route', T('Camino'), () => { this.eligiendo = { desde: n.id }; this.abrirPanel(null); new Notice(T('Toca la nota de destino')); this.pintarEstado(); this.pedir(); });
+    if (n.tema && (n.agrupados || n.capa === ultima)) this.boton(acciones, this.colapsados.has(n.tema) ? 'maximize-2' : 'minimize-2', this.colapsados.has(n.tema) ? 'Expandir' : 'Colapsar', () => this.alternarColapso(n.tema));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => { this.foco = null; this.camino = null; this.sugerencia = null; if (this.radial) this.medir(); this.abrirPanel(null); this.pintarEstado(); this.pedir(); };
+
+    const lista = p.createDiv('mn-lista');
+    const explica = lista.createDiv('mn-explica');
+    if (n.resumen) {
+      const rs = explica.createDiv({ cls: 'mn-resumen2', text: n.resumen });
+      if (!n.resumenAprobado && !n.fuente && !n.virtual) rs.addClass('mn-extraido');
+    }
+    if (n.resumen && !n.resumenAprobado && !n.fuente && !n.virtual) explica.createDiv({ cls: 'mn-capa', text: T('Resumen tomado del primer párrafo de la nota.') });
+    if (n.resumenAprobado) explica.createDiv({ cls: 'mn-capa', text: T('Resumen aprobado (propiedad resumen).') });
+    if (!n.fuente && !n.virtual && !n.agrupados && this.plugin.tieneIA()) {
+      const zona = explica.createDiv('mn-ia');
+      zona.createEl('button', { cls: 'mn-btn mn-btn-ia', text: n.resumenAprobado ? T('Rehacer resumen con IA') : T('Resumir con IA') }).onclick = () => this.proponerResumen(n, zona);
+    }
+    for (const frase of this.rol(n)) explica.createDiv({ cls: 'mn-rol', text: frase });
+    if (capa[2] && !n.agrupados) explica.createDiv({ cls: 'mn-capa', text: T('Capa {0}: {1}.', capa[1], capa[2]) });
+
+    const probs = this.problemas(n);
+    if (this.salud && probs.length) { this.titulo(lista, T('Salud'), probs.length); probs.forEach((x) => lista.createDiv({ cls: 'mn-enlace mn-archify', text: '⚠ ' + x })); }
+
+    const motivoDe = (v) => this.motivo[n.id + '|' + v.id];
+    const ordenar = (g) => g.sort((a, b) => (motivoDe(b) ? 1 : 0) - (motivoDe(a) ? 1 : 0) || this.ady[b.id].length - this.ady[a.id].length);
+    const entrada = vec.filter((v) => v.capa === 0 && n.capa !== 0);
+    const grupos = n.capa === ultima || n.agrupados
+      ? this.D.capas.map((c, i) => [i === 0 ? null : `Contiene · ${c[1]}`, vec.filter((v) => v.capa === i && i !== 0), `notas de ${c[1].toLowerCase()} que cuelgan de este tema`])
+      : [
+          ['Pertenece a', vec.filter((v) => v.capa === ultima && v.tema === n.tema), 'la síntesis de su tema'],
+          ['Aparece en la síntesis de', vec.filter((v) => v.capa === ultima && v.tema !== n.tema), 'otros temas que la citan'],
+          ['Se relaciona con', vec.filter((v) => v.capa === n.capa && v.capa !== 0), `otras notas de ${capa[1].toLowerCase()}`],
+          [n.capa === 0 ? 'Alimenta a' : 'La usan', vec.filter((v) => v.capa < n.capa && v.capa !== 0 || (n.capa === 0 && v.capa > 0 && v.capa !== ultima)), n.capa === 0 ? 'notas que se escribieron con este material' : 'notas de capas anteriores que se apoyan en esta'],
+          ['Usa', vec.filter((v) => v.capa > n.capa && v.capa !== ultima && n.capa !== 0), 'notas de la capa siguiente en las que se apoya'],
+        ];
+    for (const [titulo, g, ayuda] of grupos) {
+      if (!titulo || !g.length) continue;
+      this.titulo(lista, titulo, g.length, ayuda);
+      for (const v of ordenar(g)) this.filaConexion(lista, v, motivoDe(v), n);
+    }
+    if ((n.repos && n.repos.length) || (n.archify && n.archify.length)) {
+      this.titulo(lista, 'Código y arquitectura', (n.repos || []).length + (n.archify || []).length);
+      for (const rp of n.repos || []) {
+        const fila = lista.createDiv('mn-enlace');
+        if (rp.startsWith('local:')) { fila.setText('◯ ' + rp.slice(6) + ' — sin remoto'); continue; }
+        fila.setText('◯ github.com/' + rp); fila.onclick = () => window.open('https://github.com/' + rp, '_blank');
+      }
+      for (const a of n.archify || []) { const fila = lista.createDiv('mn-enlace mn-archify'); fila.setText('◆ ' + a.titulo + ' — mapa Archify'); fila.onclick = () => window.open(a.url, '_blank'); }
+    }
+    if (n.agrupados) {
+      const miembros = this.D.nodos.filter((x) => this.rep[x.id] === n.id && x.id !== n.id);
+      this.titulo(lista, 'Notas dentro', miembros.length);
+      miembros.slice(0, 40).forEach((x) => { const fila = lista.createDiv('mn-con'); fila.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': this.D.temas[x.tema]?.[1] || '#C9D1FF' }); fila.createDiv().createEl('b', { text: x.titulo }); fila.onclick = () => !x.fuente && this.abrirNota(x.ruta); });
+    }
+    if (entrada.length) {
+      const diarios = entrada.filter((v) => !v.fuente), fuentes = entrada.filter((v) => v.fuente);
+      this.titulo(lista, 'De dónde salió', entrada.length, [fuentes.length && `${fuentes.length} fuente(s) original(es)`, diarios.length && `${diarios.length} día(s) del diario`].filter(Boolean).join(' · '));
+      const fichas = lista.createDiv('mn-fichas');
+      for (const v of [...fuentes, ...diarios.sort((a, b) => b.titulo.localeCompare(a.titulo))]) {
+        const f = fichas.createEl('button', { cls: 'mn-ficha' + (v.fuente ? ' fuente' : ''), text: v.fuente ? '📄 ' + v.titulo.replace(/\.md$/, '') : v.titulo.replace(/ — Resumen del día$/, '') });
+        f.onclick = () => this.enfocar(v.id, true);
+      }
+    }
+    p.addClass('abierto');
+    if (!estaba) { this.medir(); this.pedir(); }
+  }
+  titulo(lista, texto, n, ayuda) {
+    const h = lista.createDiv('mn-grupo2');
+    const fila = h.createDiv('mn-grupo2-fila'); fila.createSpan({ text: texto }); fila.createSpan({ cls: 'mn-cuenta', text: String(n) });
+    if (ayuda) h.createDiv({ cls: 'mn-ayuda', text: ayuda });
+  }
+  filaConexion(lista, v, m, n) {
+    const fila = lista.createDiv('mn-con');
+    fila.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': this.D.temas[v.tema] ? this.D.temas[v.tema][1] : '#C9D1FF' });
+    const txt = fila.createDiv(); txt.createEl('b', { text: v.agrupados ? T('{0} · {1} notas', this.D.temas[v.tema]?.[0] || v.titulo, v.agrupados + 1) : v.titulo });
+    const fr = n && this.frase[n.id + '|' + v.id];
+    if (m) txt.createDiv({ cls: 'mn-motivo', text: m });
+    else if (fr) {
+      const d = txt.createDiv({ cls: 'mn-frase' });
+      d.createSpan({ cls: 'mn-frase-etq', text: T('en el texto: ') }); d.appendText('«' + fr.texto + '»');
+    } else if (!v.fuente) txt.createDiv({ cls: 'mn-motivo mn-tenue', text: T('enlazadas sin frase visible') });
+    fila.onclick = () => this.enfocar(v.id, true);
+    if (!m && fr && !v.fuente && !v.virtual && !n.virtual && !n.agrupados && this.plugin.tieneIA()) {
+      const zona = txt.createDiv('mn-ia');
+      const bt = zona.createEl('button', { cls: 'mn-btn mn-btn-ia', text: T('Sugerir motivo ✦') });
+      bt.onclick = (e) => { e.stopPropagation(); this.sugerirMotivo(fr, zona); };
+    }
+  }
+  async proponerResumen(n, zona) {
+    zona.empty(); zona.createDiv({ cls: 'mn-ia-estado', text: T('Leyendo la nota…') });
+    try {
+      const res = await this.plugin.proponerResumen(n.ruta);
+      zona.empty();
+      const caja = zona.createDiv('mn-ia-caja' + (res.aprobable ? '' : ' rechazada'));
+      caja.createDiv({ cls: 'mn-ia-titulo', text: res.aprobable ? T('Resumen propuesto (verificado)') : T('No se puede aprobar') });
+      if (res.resumen) caja.createDiv({ cls: 'mn-ia-motivo', text: res.resumen });
+      for (const c of res.citas || []) { const q = caja.createDiv('mn-ia-cita'); q.createSpan({ cls: 'mn-frase-etq', text: (c.ok ? T('Cita ✓: ') : T('Cita ✕ no aparece literal: ')) }); q.appendText('«' + c.texto + '»'); }
+      if (res.revision) caja.createDiv({ cls: 'mn-ia-rev', text: res.revision.fiel ? T('✓ Segunda revisión: fiel a la nota') : T('✕ Segunda revisión: ') + res.revision.problema });
+      if (res.advertencia) caja.createDiv({ cls: 'mn-ia-rev', text: '⚠ ' + res.advertencia });
+      const acc = caja.createDiv('mn-acciones');
+      if (res.aprobable) { const ok = acc.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y guardar en la nota') }); ok.onclick = async () => { ok.disabled = true; await this.plugin.aprobarResumen(n.ruta, res); new Notice(T('Resumen guardado en la propiedad resumen de la nota.')); }; }
+      acc.createEl('button', { cls: 'mn-btn', text: T('Reintentar') }).onclick = () => this.proponerResumen(n, zona);
+      acc.createEl('button', { cls: 'mn-btn', text: T('Descartar') }).onclick = () => zona.empty();
+    } catch (err) { zona.empty(); zona.createDiv({ cls: 'mn-ia-estado mn-falta', text: '✕ ' + (err.message || String(err)) }); }
+  }
+  // Sugerencia con IA en tres candados: citas textuales · verificación por código · segunda revisión.
+  async sugerirMotivo(fr, zona) {
+    zona.empty(); zona.createDiv({ cls: 'mn-ia-estado', text: T('Leyendo las dos notas…') });
+    try {
+      const res = await this.plugin.sugerir(fr);
+      zona.empty();
+      const caja = zona.createDiv('mn-ia-caja' + (res.aprobable ? '' : ' rechazada'));
+      caja.createDiv({ cls: 'mn-ia-titulo', text: res.aprobable ? T('✦ Motivo propuesto (verificado)') : T('✕ No se puede aprobar') });
+      if (res.motivo) caja.createDiv({ cls: 'mn-ia-motivo', text: res.motivo });
+      for (const [etq, c] of [[T('Cita de la nota de origen'), res.cita_origen], [T('Cita de la nota enlazada'), res.cita_destino]]) {
+        if (!c) continue;
+        const q = caja.createDiv('mn-ia-cita'); q.createSpan({ cls: 'mn-frase-etq', text: etq + (c.ok ? ' ✓' : T(' ✕ no aparece literal')) + ': ' }); q.appendText('«' + c.texto + '»');
+      }
+      if (res.revision) caja.createDiv({ cls: 'mn-ia-rev', text: (res.revision.fiel ? T('✓ Segunda revisión: fiel al texto') : T('✕ Segunda revisión: ') + res.revision.problema) });
+      if (res.advertencia) caja.createDiv({ cls: 'mn-ia-rev', text: '⚠ ' + res.advertencia });
+      const acc = caja.createDiv('mn-acciones');
+      if (res.aprobable) {
+        const ok = acc.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y escribir en la nota') });
+        ok.onclick = async (e) => { e.stopPropagation(); ok.disabled = true; await this.plugin.aprobar(fr, res); new Notice(T('Motivo escrito en la nota y registrado.')); };
+      }
+      const otra = acc.createEl('button', { cls: 'mn-btn', text: T('Reintentar') }); otra.onclick = (e) => { e.stopPropagation(); this.sugerirMotivo(fr, zona); };
+      const no = acc.createEl('button', { cls: 'mn-btn', text: T('Descartar') }); no.onclick = (e) => { e.stopPropagation(); zona.empty(); };
+    } catch (err) {
+      zona.empty(); zona.createDiv({ cls: 'mn-ia-estado mn-falta', text: '✕ ' + (err.message || String(err)) });
+    }
+  }
+  panelCamino(ruta) {
+    const p = this.panel; p.empty(); this.guia.hide();
+    const A = this.porId[ruta[0]], B = this.porId[ruta[ruta.length - 1]];
+    const acciones = this.cabecera(p, T('Camino · {0} salto(s)', ruta.length - 1), `${A.titulo} → ${B.titulo}`, T('La ruta más corta entre las dos notas, y por qué se conecta cada paso.'));
+    const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
+    try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
+    cerrar.onclick = () => { this.camino = null; this.abrirPanel(null); this.pedir(); };
+    const lista = p.createDiv('mn-lista');
+    ruta.forEach((id, i) => {
+      const n = this.porId[id], paso = lista.createDiv('mn-paso');
+      paso.createSpan({ cls: 'mn-num', text: String(i + 1) });
+      const txt = paso.createDiv(); txt.createEl('b', { text: n.agrupados ? T('{0} (supernodo)', this.D.temas[n.tema]?.[0]) : n.titulo });
+      txt.createDiv({ cls: 'mn-ruta', text: `${this.D.capas[n.capa][1]} · ${this.D.temas[n.tema] ? this.D.temas[n.tema][0] : T('sin tema')}` });
+      paso.onclick = () => (n.fuente || n.virtual ? null : this.abrirNota(n.ruta));
+      if (i < ruta.length - 1) { const m = this.motivo[id + '|' + ruta[i + 1]], fr = this.frase[id + '|' + ruta[i + 1]]; lista.createDiv({ cls: 'mn-salto', text: m ? '↓ ' + m : fr ? '↓ en el texto: «' + fr.texto + '»' : '↓ enlazadas' }); }
+    });
+    p.addClass('abierto');
+  }
+  panelVacios() {
+    const p = this.panel; p.empty(); this.guia.hide();
+    const acciones = this.cabecera(p, T('Vacíos entre temas'), T('Lo que debería estar conectado y no lo está'),
+      T('Pares de temas con muchos menos enlaces de los esperables por su tamaño. Las sugerencias son notas que comparten vecinos pero no se enlazan.'));
+    acciones.createEl('button', { text: T('Cerrar') }).onclick = () => { this.vacios = false; this.sugerencia = null; this.abrirPanel(null); this.pintarEstado(); this.pedir(); };
+    const lista = p.createDiv('mn-lista');
+    if (!this.listaVacios.length) { lista.createDiv({ cls: 'mn-resumen', text: T('No hay vacíos marcados: los temas se enlazan entre sí en proporción a su tamaño.') }); p.addClass('abierto'); return; }
+    for (const v of this.listaVacios) {
+      const [ni, ci] = this.D.temas[v.ti], [nj, cj] = this.D.temas[v.tj];
+      const h = lista.createDiv('mn-vacio');
+      const t = h.createDiv('mn-vacio-t');
+      t.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': ci }); t.appendText(` ${ni}  ⌁  `);
+      t.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': cj }); t.appendText(` ${nj}`);
+      h.createDiv({ cls: 'mn-motivo', text: T('{0} enlace(s); por su tamaño se esperarían ~{1}', v.real, Math.round(v.esperado)) });
+      if (!v.candidatos.length) { h.createDiv({ cls: 'mn-motivo', text: T('Sin notas que compartan vecinos: el puente todavía no existe.') }); continue; }
+      for (const c of v.candidatos) {
+        const fila = h.createDiv('mn-enlace');
+        fila.setText(T('{0}  ↔  {1} · {2} vecino(s) en común', this.base[c.a].titulo, this.base[c.b].titulo, c.comunes));
+        fila.onclick = () => { this.sugerencia = [c.a, c.b]; this.foco = null; this.pedir(); };
+      }
+    }
+    p.addClass('abierto');
+  }
+  informeSalud() {
+    const nodos = this.D.nodos.filter((n) => !n.fuente);
+    const huerf = nodos.filter((n) => n.grado === 0).length, sinTema = nodos.filter((n) => !n.propio && n.capa !== 0).length;
+    const sinMot = this.D.aristas.filter(([a, b, m]) => !m && !this.base[a].fuente && !this.base[b].fuente).length;
+    new Notice(T('Salud: {0} huérfana(s) · {1} sin tema · {2} enlace(s) sin motivo', huerf, sinTema, sinMot), 6000);
+  }
+  async exportar() {
+    const blob = await new Promise((ok) => this.lienzo.toBlob(ok, 'image/png'));
+    if (!blob) return new Notice(T('No se pudo generar la imagen'));
+    const carpeta = this.plugin.ajustes.carpetaExport ? normalizePath(this.plugin.ajustes.carpetaExport) : '';
+    if (carpeta && carpeta !== '/' && !this.app.vault.getFolderByPath(carpeta)) await this.app.vault.createFolder(carpeta);
+    const base = carpeta && carpeta !== '/' ? carpeta + '/' : '';
+    let ruta = normalizePath(`${base}mapa-neuronal-${hoy()}.png`), i = 2;
+    while (this.app.vault.getFileByPath(ruta)) ruta = normalizePath(`${base}mapa-neuronal-${hoy()}-${i++}.png`);
+    await this.app.vault.createBinary(ruta, await blob.arrayBuffer());
+    new Notice(T('Imagen guardada en {0}', ruta));
+  }
+  abrirNota(ruta) {
+    const f = this.app.vault.getFileByPath(ruta);
+    if (f) this.app.workspace.getLeaf(Platform.isMobile ? false : 'tab').openFile(f);
+  }
+}
+
+class AjustesMapa extends PluginSettingTab {
+  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
+  display() {
+    const { containerEl: c } = this, p = this.plugin; c.empty();
+    c.createEl('p', { text: T('Los cambios se aplican al cerrar este panel o al tocar ⋯ herramientas y luego recargar el mapa.'), cls: 'setting-item-description' });
+    const area = (nombre, desc, clave, filas) => new Setting(c).setName(T(nombre)).setDesc(T(desc)).addTextArea((t) => {
+      t.setValue(p.ajustes[clave]).onChange(async (v) => { p.ajustes[clave] = v; await p.guardar(); });
+      t.inputEl.rows = filas; t.inputEl.addClass('mn-ajuste-area');
+    });
+    area(T('Capas'), 'Una por línea, de izquierda a derecha: «Nombre | descripción».', 'capas', 5);
+    area('Carpetas → capa', 'Una por línea: «carpeta = número de capa» (0 es la primera). Gana la carpeta más específica. Lo que no esté aquí no aparece.', 'carpetas', 8);
+    new Setting(c).setName(T('Propiedad de tema')).setDesc(T('Propiedad del frontmatter que agrupa y colorea las notas. Vacío = sin temas.'))
+      .addText((t) => t.setValue(p.ajustes.propiedadTema).onChange(async (v) => { p.ajustes.propiedadTema = v.trim(); await p.guardar(); }));
+    area('Temas', 'Una por línea: «valor = nombre visible = #color». Los temas que no estén aquí reciben un color automático.', 'temas', 7);
+    area('Excluir notas', 'Nombres de nota (sin .md), separados por coma o línea. Útil para notas que enlazan a todo.', 'excluir', 2);
+    new Setting(c).setName(T('Mostrar fuentes citadas')).setDesc(T('Agrega a la primera capa los archivos de raw/ que las notas citan.'))
+      .addToggle((t) => t.setValue(p.ajustes.fuentes).onChange(async (v) => { p.ajustes.fuentes = v; await p.guardar(); }));
+    new Setting(c).setName(T('Notas visibles por capa')).setDesc(T('En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.'))
+      .addSlider((sl) => sl.setLimits(30, 600, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
+    new Setting(c).setName(T('Seguir la nota activa')).setDesc(T('Al abrir una nota, el mapa la enfoca.'))
+      .addToggle((t) => t.setValue(p.ajustes.seguirActiva).onChange(async (v) => { p.ajustes.seguirActiva = v; await p.guardar(); }));
+    new Setting(c).setName(T('Animación')).setDesc(T('Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.'))
+      .addToggle((t) => t.setValue(p.ajustes.animacion).onChange(async (v) => { p.ajustes.animacion = v; await p.guardar(); }));
+    new Setting(c).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Sección de conexiones')).setDesc(T('Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).'))
+      .addText((t) => t.setValue(p.ajustes.seccionMotivos).onChange(async (v) => { p.ajustes.seccionMotivos = v.trim() || 'Conexiones'; await p.guardar(); }));
+    new Setting(c).setName(T('Conecta tu inteligencia artificial (opcional)')).setHeading();
+    c.createEl('p', { cls: 'setting-item-description', text: T('Para el botón de sugerir motivo. Usa tu propia llave de la API, se guarda solo en este dispositivo y no viaja por Sync ni por git. La IA propone; tú apruebas.') });
+    const prov = p.ajustes.proveedorIA || 'claude', def = PROVEEDORES[prov];
+    new Setting(c).setName(T('Proveedor')).setDesc(T('Elige con qué IA se generan los motivos y los resúmenes. Los controles de calidad (citas verificadas y tu aprobación) funcionan con todos.'))
+      .addDropdown((d) => d.addOptions(Object.fromEntries(Object.entries(PROVEEDORES).map(([k, v]) => [k, v.nombre]))).setValue(prov)
+        .onChange(async (v) => { p.ajustes.proveedorIA = v; p.ajustes.modeloIA = PROVEEDORES[v].modelo; await p.guardar(); this.display(); }));
+    if (def.llave) new Setting(c).setName(T('Llave de la API')).setDesc(p.app.loadLocalStorage(CLAVE_IA(prov)) ? T('Guardada en este dispositivo. ') + T(def.ayuda) : T(def.ayuda))
+      .addText((t) => { t.inputEl.type = 'password'; t.setPlaceholder(p.app.loadLocalStorage(CLAVE_IA(prov)) ? T('guardada') : T('pega la llave aquí')); t.onChange((v) => { p.app.saveLocalStorage(CLAVE_IA(prov), v.trim() || null); }); })
+      .addButton((b) => b.setButtonText(T('Borrar')).onClick(() => { p.app.saveLocalStorage(CLAVE_IA(prov), null); this.display(); new Notice(T('Llave borrada de este dispositivo')); }));
+    else new Setting(c).setName(T('Sin llave')).setDesc(T(def.ayuda));
+    if (prov === 'local') new Setting(c).setName(T('Dirección del servidor local')).setDesc(T('Compatible con OpenAI. Ollama usa http://localhost:11434/v1/chat/completions.'))
+      .addText((t) => t.setValue(p.ajustes.urlLocal).onChange(async (v) => { p.ajustes.urlLocal = v.trim() || PROVEEDORES.local.url; await p.guardar(); }));
+    if (prov === 'claude') new Setting(c).setName(T('Modelo')).setDesc(T(def.modeloAyuda))
+      .addDropdown((d) => d.addOptions({ 'claude-opus-5': 'Claude Opus 5', 'claude-sonnet-5': 'Claude Sonnet 5', 'claude-haiku-4-5': 'Claude Haiku 4.5' }).setValue(p.ajustes.modeloIA || 'claude-opus-5').onChange(async (v) => { p.ajustes.modeloIA = v; await p.guardar(); }));
+    else new Setting(c).setName(T('Modelo')).setDesc(T(def.modeloAyuda))
+      .addText((t) => t.setPlaceholder(T('nombre del modelo')).setValue(p.ajustes.modeloIA).onChange(async (v) => { p.ajustes.modeloIA = v.trim(); await p.guardar(); }));
+    c.createEl('p', { cls: 'setting-item-description', text: T('La calidad de los motivos se midió con Claude Opus 5: 97,7 % correctos y 0 inventados sobre 50 conexiones. Con otros modelos los candados siguen puestos (citas verificadas y tu aprobación), pero la precisión no está medida.') });
+    new Setting(c).setName(T('Segunda revisión')).setDesc(T('Una segunda llamada revisa que el motivo sea fiel (negaciones, estados, pendientes). Cuesta el doble y bloquea errores de matiz.'))
+      .addToggle((t) => t.setValue(p.ajustes.dobleVerificacion).onChange(async (v) => { p.ajustes.dobleVerificacion = v; await p.guardar(); }));
+    new Setting(c).setName(T('Carpeta del registro de aprobaciones')).setDesc(T('Cada motivo aprobado deja constancia (fecha, citas, modelo) en <carpeta>/<fecha>/mapa-neuronal-motivos.md.'))
+      .addText((t) => t.setValue(p.ajustes.carpetaAuditoria).onChange(async (v) => { p.ajustes.carpetaAuditoria = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Restablecer')).setDesc(T('Vuelve a los valores por defecto.'))
+      .addButton((b) => b.setButtonText(T('Restablecer')).onClick(async () => { p.ajustes = Object.assign({}, AJUSTES_BASE); await p.guardar(); this.display(); }));
+    c.createEl('p', { cls: 'setting-item-description', text: T('Restablecer no borra la llave guardada en este dispositivo.') });
+  }
+  hide() { this.plugin.refrescarVistas(); }
+}
+
+export default class MapaNeuronal extends Plugin {
+  async onload() {
+    const guardado = await this.loadData();
+    this.ajustes = Object.assign({}, AJUSTES_BASE, guardado);
+    if (!guardado) { // primera instalación: los valores de ejemplo en el idioma de Obsidian
+      this.ajustes.capas = `${T('Entrada')} | ${T('notas con fecha')}\n${T('Notas')} | ${T('el resto del vault')}`;
+      this.ajustes.seccionMotivos = T('Conexiones');
+    }
+    this.registerView(VISTA, (hoja) => new VistaMapa(hoja, this));
+    this.addSettingTab(new AjustesMapa(this.app, this));
+    this.addRibbonIcon('brain-circuit', 'Mapa neuronal', () => this.abrir());
+    this.addCommand({ id: 'abrir', name: T('Abrir el mapa'), callback: () => this.abrir() });
+    this.addCommand({ id: 'enfocar-actual', name: T('Mostrar la nota actual en el mapa'), checkCallback: (probar) => {
+      const f = this.app.workspace.getActiveFile(); if (!f) return false;
+      if (!probar) this.abrir().then(() => this.app.workspace.getLeavesOfType(VISTA)[0]?.view.enfocar(f.path, true));
+      return true;
+    } });
+    this.refrescarVistas = debounce(() => this.app.workspace.getLeavesOfType(VISTA).forEach((h) => h.view.recargar?.()), 1500, true);
+    this.registerEvent(this.app.metadataCache.on('resolved', () => this.refrescarVistas()));
+  }
+  async guardar() { await this.saveData(this.ajustes); }
+  tieneIA() {
+    const prov = this.ajustes.proveedorIA || 'claude', def = PROVEEDORES[prov];
+    if (!def) return false;
+    return def.llave ? !!this.app.loadLocalStorage(CLAVE_IA(prov)) : !!this.ajustes.modeloIA;
+  }
+
+  // Llamada a la API de Claude. Se usa requestUrl de Obsidian y no el SDK: el plugin no tiene paso de
+  // compilación y en el celular una llamada fetch del navegador choca con CORS; requestUrl no.
+  // Una sola puerta para todos los proveedores. Devuelve el objeto JSON que pide el esquema.
+  async llamarIA(sistema, usuario, esquema) {
+    const prov = this.ajustes.proveedorIA || 'claude', def = PROVEEDORES[prov];
+    if (!def) throw new Error(T('Proveedor de IA desconocido.'));
+    const llave = def.llave ? this.app.loadLocalStorage(CLAVE_IA(prov)) : '';
+    if (def.llave && !llave) throw new Error(T('Falta la llave de {0} en este dispositivo (configuración del plugin).', def.nombre));
+    const modelo = (this.ajustes.modeloIA || def.modelo || '').trim();
+    if (!modelo) throw new Error(T('Falta escribir el modelo en la configuración del plugin.'));
+    const texto = prov === 'claude' ? await this.pedirClaude(llave, modelo, sistema, usuario, esquema)
+      : prov === 'gemini' ? await this.pedirGemini(llave, modelo, sistema, usuario, esquema)
+      : await this.pedirCompatible(prov, llave, modelo, sistema, usuario, esquema);
+    const limpio = String(texto).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+    try { return JSON.parse(limpio); } catch { throw new Error(T('La IA no devolvió un resultado legible. Prueba con otro modelo.')); }
+  }
+  revisarRespuesta(r, nombre) {
+    const j = r.json || {};
+    if (r.status === 401 || r.status === 403) throw new Error(T('{0} rechazó la llave ({1}).', nombre, r.status));
+    if (r.status === 429) throw new Error(T('{0} alcanzó su límite de uso (429). Intenta más tarde.', nombre));
+    if (r.status === 0 || r.status >= 500) throw new Error(T('{0} no respondió ({1}). Si es una IA local, revisa que esté corriendo.', nombre, r.status));
+    if (r.status >= 400) throw new Error(T('{0} respondió {1}: {2}', nombre, r.status, j.error?.message || 'error'));
+    return j;
+  }
+  async pedirClaude(llave, modelo, sistema, usuario, esquema) {
+    const headers = { 'content-type': 'application/json', 'x-api-key': llave, 'anthropic-version': '2023-06-01' };
+    const cuerpo = { model: modelo, max_tokens: 16000, system: sistema, messages: [{ role: 'user', content: usuario }],
+      output_config: { format: { type: 'json_schema', schema: esquema } } };
+    if (modelo === 'claude-opus-5') { headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; cuerpo.fallbacks = 'default'; }
+    const r = await requestUrl({ url: PROVEEDORES.claude.url, method: 'POST', headers, body: JSON.stringify(cuerpo), throw: false });
+    const j = this.revisarRespuesta(r, 'Claude');
+    if (j.stop_reason === 'refusal') throw new Error(T('El modelo declinó esta solicitud.'));
+    if (j.stop_reason === 'max_tokens') throw new Error(T('La respuesta quedó cortada. Reintenta.'));
+    return (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  }
+  async pedirCompatible(prov, llave, modelo, sistema, usuario, esquema) {
+    const url = prov === 'local' ? (this.ajustes.urlLocal || PROVEEDORES.local.url) : PROVEEDORES.openai.url;
+    const headers = { 'content-type': 'application/json' };
+    if (llave) headers.authorization = `Bearer ${llave}`;
+    const cuerpo = { model: modelo, messages: [{ role: 'system', content: sistema }, { role: 'user', content: usuario }],
+      response_format: prov === 'local' ? { type: 'json_object' } : { type: 'json_schema', json_schema: { name: 'respuesta', strict: true, schema: esquema } } };
+    if (prov === 'local') cuerpo.messages[0].content += '\nResponde SOLO con un objeto JSON con estas claves: ' + Object.keys(esquema.properties).join(', ') + '.';
+    const r = await requestUrl({ url, method: 'POST', headers, body: JSON.stringify(cuerpo), throw: false });
+    const j = this.revisarRespuesta(r, prov === 'local' ? 'La IA local' : 'OpenAI');
+    return j.choices?.[0]?.message?.content || '';
+  }
+  async pedirGemini(llave, modelo, sistema, usuario, esquema) {
+    const limpiar = (e) => ({ type: e.type, ...(e.properties ? { properties: Object.fromEntries(Object.entries(e.properties).map(([k, v]) => [k, limpiar(v)])) } : {}), ...(e.items ? { items: limpiar(e.items) } : {}), ...(e.required ? { required: e.required } : {}) });
+    const url = `${PROVEEDORES.gemini.url}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(llave)}`;
+    const cuerpo = { systemInstruction: { parts: [{ text: sistema }] }, contents: [{ role: 'user', parts: [{ text: usuario }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: limpiar(esquema) } };
+    const r = await requestUrl({ url, method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo), throw: false });
+    const j = this.revisarRespuesta(r, 'Gemini');
+    return (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join('');
+  }
+  async sugerir(fr) {
+    const leer = async (ruta) => { const f = this.app.vault.getFileByPath(ruta); return f ? this.app.vault.cachedRead(f) : ''; };
+    const origen = await leer(fr.origen), destino = await leer(fr.destino);
+    const LIM = 60000;
+    if (origen.length > LIM || destino.length > LIM) throw new Error(T('Una de las notas es demasiado larga para enviarla completa (más de 60.000 caracteres).'));
+    const nombre = (ruta) => ruta.split('/').pop().replace(/\.md$/, '');
+    const sistema = 'Explicas por qué una nota de un wiki personal enlaza a otra. Reglas estrictas: usa SOLO lo que dicen las dos notas; no infieras ni completes con conocimiento externo. Respeta negaciones ("nadie lo conectó"), estados ("idea", "pendiente", "descartado", "sin verificar") y condicionales: un pendiente no es un hecho. Las citas deben ser copias LITERALES, carácter por carácter, de un fragmento de cada nota (sin reformular, sin "…"). Si la relación no se puede afirmar con citas literales, responde con suficiente=false.';
+    const usuario = `NOTA DE ORIGEN (${nombre(fr.origen)}). El enlace a [[${nombre(fr.destino)}]] está en la línea ${fr.linea}:\n<origen>\n${origen}\n</origen>\n\nNOTA ENLAZADA (${nombre(fr.destino)}):\n<destino>\n${destino}\n</destino>\n\nEscribe el motivo del enlace: una frase en español de 6 a 18 palabras, concreta, que diga por qué la nota de origen se conecta con la enlazada. Da una cita literal de la nota de origen (idealmente la línea ${fr.linea} o parte de ella) y una cita literal de la nota enlazada que respalde el motivo.`;
+    const esquema = { type: 'object', additionalProperties: false, required: ['suficiente', 'motivo', 'cita_origen', 'cita_destino'],
+      properties: { suficiente: { type: 'boolean' }, motivo: { type: 'string' }, cita_origen: { type: 'string' }, cita_destino: { type: 'string' } } };
+    const g = await this.llamarIA(sistema, usuario, esquema);
+    const norm = (t) => String(t || '').replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/[*_`]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const esta = (cita, texto) => { const c = norm(cita); return c.length >= 12 && (norm(texto).includes(c) || texto.replace(/\s+/g, ' ').toLowerCase().includes(String(cita).replace(/\s+/g, ' ').trim().toLowerCase())); };
+    const res = { motivo: (g.motivo || '').trim(), modelo: this.ajustes.modeloIA,
+      cita_origen: g.cita_origen ? { texto: g.cita_origen, ok: esta(g.cita_origen, origen) } : null,
+      cita_destino: g.cita_destino ? { texto: g.cita_destino, ok: esta(g.cita_destino, destino) } : null };
+    const palabras = res.motivo.split(/\s+/).filter(Boolean).length;
+    if (!g.suficiente || !res.motivo) { res.advertencia = 'La IA no encontró base literal suficiente para afirmar un motivo.'; res.aprobable = false; return res; }
+    if (palabras < 4 || palabras > 24) { res.advertencia = `El motivo tiene ${palabras} palabras; debe ser una frase corta.`; }
+    if (!res.cita_origen?.ok || !res.cita_destino?.ok) { res.aprobable = false; res.advertencia = 'Una cita no aparece literal en la nota: se bloquea para no escribir algo no verificable.'; return res; }
+    if (this.ajustes.dobleVerificacion) {
+      const esquema2 = { type: 'object', additionalProperties: false, required: ['fiel', 'problema'], properties: { fiel: { type: 'boolean' }, problema: { type: 'string' } } };
+      const sistema2 = 'Eres un revisor escéptico. Decides si un motivo de enlace es FIEL a dos notas. Es infiel si: afirma algo que las notas no dicen; convierte un pendiente, idea o posibilidad en un hecho; ignora una negación; atribuye algo a la nota equivocada; o describe otra relación distinta de la que el texto establece. Si hay cualquier duda, fiel=false.';
+      const usuario2 = `<origen>\n${origen}\n</origen>\n\n<destino>\n${destino}\n</destino>\n\nEnlace: línea ${fr.linea} de la nota de origen, hacia [[${nombre(fr.destino)}]].\nMotivo propuesto: "${res.motivo}"\nCitas: origen «${g.cita_origen}» · destino «${g.cita_destino}»\n\n¿Es fiel? Si no, explica el problema en una frase; si es fiel, problema="".`;
+      res.revision = await this.llamarIA(sistema2, usuario2, esquema2);
+      res.aprobable = !!res.revision.fiel;
+    } else res.aprobable = true;
+    return res;
+  }
+  verificarCita(cita, texto) {
+    const norm = (t) => String(t || '').replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/[*_`]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const c = norm(cita); return c.length >= 12 && (norm(texto).includes(c) || texto.replace(/\s+/g, ' ').toLowerCase().includes(String(cita).replace(/\s+/g, ' ').trim().toLowerCase()));
+  }
+  async proponerResumen(ruta) {
+    const f = this.app.vault.getFileByPath(ruta); if (!f) throw new Error(T('No encuentro la nota'));
+    const texto = await this.app.vault.cachedRead(f);
+    if (texto.length > 60000) throw new Error(T('La nota es demasiado larga para enviarla completa (más de 60.000 caracteres).'));
+    const sistema = 'Resumes una nota de un wiki personal. Reglas estrictas: usa SOLO lo que dice la nota; no agregues conocimiento externo. Respeta negaciones, estados ("idea", "pendiente", "descartado", "sin verificar") y condicionales: un pendiente no es un hecho. Las citas deben ser copias LITERALES, carácter por carácter, de fragmentos de la nota. Si la nota no tiene contenido suficiente para resumirla, responde suficiente=false.';
+    const usuario = `<nota>\n${texto}\n</nota>\n\nEscribe un resumen en español de 1 o 2 frases (máximo 40 palabras) que diga qué es la nota y lo más importante que afirma. Da 1 o 2 citas literales de la nota que respalden el resumen (cada una de al menos 12 caracteres).`;
+    const esquema = { type: 'object', additionalProperties: false, required: ['suficiente', 'resumen', 'citas'], properties: { suficiente: { type: 'boolean' }, resumen: { type: 'string' }, citas: { type: 'array', items: { type: 'string' } } } };
+    const g = await this.llamarIA(sistema, usuario, esquema);
+    const res = { resumen: (g.resumen || '').trim(), modelo: this.ajustes.modeloIA, citas: (g.citas || []).slice(0, 2).map((t) => ({ texto: t, ok: this.verificarCita(t, texto) })) };
+    if (!g.suficiente || !res.resumen) { res.aprobable = false; res.advertencia = 'La nota no tiene contenido suficiente para un resumen fiel.'; return res; }
+    const palabras = res.resumen.split(/\s+/).filter(Boolean).length;
+    if (palabras > 55) { res.aprobable = false; res.advertencia = `El resumen tiene ${palabras} palabras; debe ser breve.`; return res; }
+    if (!res.citas.length || res.citas.some((c) => !c.ok)) { res.aprobable = false; res.advertencia = 'Una cita no aparece literal en la nota: se bloquea para no guardar algo no verificable.'; return res; }
+    if (this.ajustes.dobleVerificacion) {
+      const esquema2 = { type: 'object', additionalProperties: false, required: ['fiel', 'problema'], properties: { fiel: { type: 'boolean' }, problema: { type: 'string' } } };
+      const sistema2 = 'Eres un revisor escéptico. Decides si un resumen es FIEL a una nota. Es infiel si afirma algo que la nota no dice, convierte un pendiente o idea en hecho, ignora una negación u omite la idea central. Ante cualquier duda, fiel=false.';
+      res.revision = await this.llamarIA(sistema2, `<nota>\n${texto}\n</nota>\n\nResumen propuesto: "${res.resumen}"\n\n¿Es fiel? Si no, explica el problema en una frase; si es fiel, problema="".`, esquema2);
+      res.aprobable = !!res.revision.fiel;
+    } else res.aprobable = true;
+    return res;
+  }
+  async aprobarResumen(ruta, res) {
+    const f = this.app.vault.getFileByPath(ruta); if (!f) throw new Error(T('No encuentro la nota'));
+    await this.app.fileManager.processFrontMatter(f, (fm) => { fm.resumen = res.resumen; });
+    await this.registrar(`\n## ${new Date().toTimeString().slice(0, 5)} · resumen de ${ruta}\n- Resumen aprobado: ${res.resumen}\n${(res.citas || []).map((c) => `- Cita: «${c.texto}»`).join('\n')}\n- Modelo: ${res.modelo} · segunda revisión: ${res.revision ? (res.revision.fiel ? 'fiel' : 'no fiel') : 'desactivada'} · aprobado por la persona\n`);
+    this.refrescarVistas();
+  }
+  async registrar(entrada) {
+    const hoyStr = hoy(), carpeta = normalizePath(`${this.ajustes.carpetaAuditoria || 'Mapa neuronal/aprobaciones'}/${hoyStr}`), ruta = normalizePath(`${carpeta}/mapa-neuronal-motivos.md`);
+    if (!this.app.vault.getFolderByPath(carpeta)) await this.app.vault.createFolder(carpeta);
+    const registro = this.app.vault.getFileByPath(ruta);
+    if (registro) await this.app.vault.append(registro, entrada);
+    else await this.app.vault.create(ruta, `---\ndate: ${hoyStr}\nsource: mapa-neuronal\ntype: daily-raw\n---\n\n# Aprobaciones desde el mapa neuronal\n` + entrada);
+  }
+  // Escribe el motivo aprobado en la sección final de la nota de origen y deja registro de auditoría.
+  async aprobar(fr, res) {
+    const f = this.app.vault.getFileByPath(fr.origen); if (!f) throw new Error(T('No encuentro la nota de origen'));
+    const titulo = this.ajustes.seccionMotivos || 'Conexiones';
+    const base = fr.destino.split('/').pop().replace(/\.md$/, ''), linea = `- [[${base}]] — ${res.motivo.replace(/\s+/g, ' ').replace(/\.$/, '')}`, hoyStr = hoy();
+    await this.app.vault.process(f, (t) => {
+      let out = t.replace(/^updated: .*$/m, `updated: ${hoyStr}`);
+      const esc = titulo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), i = out.search(new RegExp('^## ' + esc + '[^\\n]*$', 'm'));
+      if (i < 0) return out.replace(/\s*$/, '') + `\n\n## ${titulo}\n\n${linea}\n`;
+      const resto = out.slice(i), fin = resto.slice(1).search(/^## /m);
+      const seccion = fin < 0 ? resto : resto.slice(0, fin + 1), despues = fin < 0 ? '' : resto.slice(fin + 1);
+      return out.slice(0, i) + seccion.replace(/\s*$/, '') + `\n${linea}\n` + (despues ? '\n' + despues : '');
+    });
+    const entrada = `\n## ${new Date().toTimeString().slice(0, 5)} · ${fr.origen} → [[${base}]]\n- Motivo aprobado: ${res.motivo}\n- Cita origen (línea ${fr.linea}): «${res.cita_origen?.texto}»\n- Cita destino: «${res.cita_destino?.texto}»\n- Modelo: ${res.modelo} · segunda revisión: ${res.revision ? (res.revision.fiel ? 'fiel' : 'no fiel') : 'desactivada'} · aprobado por la persona\n`;
+    await this.registrar(entrada);
+    this.refrescarVistas();
+  }
+  async abrir() {
+    const ya = this.app.workspace.getLeavesOfType(VISTA)[0];
+    if (ya) { this.app.workspace.revealLeaf(ya); return; }
+    const hoja = this.app.workspace.getLeaf(Platform.isMobile ? false : 'tab');
+    await hoja.setViewState({ type: VISTA, active: true });
+    this.app.workspace.revealLeaf(hoja);
+  }
+}

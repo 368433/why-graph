@@ -1,0 +1,11 @@
+node_modules/
+
+# Artefactos del build: se publican en el release, no en el repositorio.
+# Con la barra al principio: SOLO el de la raíz. Sin ella también tapaba src/main.js,
+# que es el código fuente, y el primer commit salió sin él.
+/main.js
+/main.js.map
+*.tgz
+
+# Basura del sistema
+.DS_Store
