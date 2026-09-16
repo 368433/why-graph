@@ -302,7 +302,10 @@ const EN = {
   'La IA no devolvió un resultado legible. Prueba con otro modelo.': 'The AI did not return a readable result. Try another model.',
   '{0} rechazó la llave ({1}).': '{0} rejected the key ({1}).',
   '{0} alcanzó su límite de uso (429). Intenta más tarde.': '{0} hit its usage limit (429). Try again later.',
-  '{0} no respondió ({1}). Si es una IA local, revisa que esté corriendo.': '{0} did not answer ({1}). If it is a local AI, check that it is running.',
+  '{0} no respondió ({1}). Revisa que Ollama o LM Studio esté corriendo en este computador.':
+    '{0} did not answer ({1}). Check that Ollama or LM Studio is running on this computer.',
+  '{0} no respondió ({1}): su servicio está caído o sobrecargado. No es tu configuración; vuelve a intentar en un rato.':
+    '{0} did not answer ({1}): their service is down or overloaded. This is not your setup; try again in a while.',
   '{0} respondió {1}: {2}': '{0} answered {1}: {2}',
   'El modelo declinó esta solicitud.': 'The model declined this request.',
   'La respuesta quedó cortada. Reintenta.': 'The answer was cut short. Try again.',
@@ -1546,11 +1549,16 @@ export default class MapaNeuronal extends Plugin {
     const limpio = String(texto).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
     try { return JSON.parse(limpio); } catch { throw new Error(T('La IA no devolvió un resultado legible. Prueba con otro modelo.')); }
   }
-  revisarRespuesta(r, nombre) {
+  revisarRespuesta(r, nombre, local) {
     const j = r.json || {};
     if (r.status === 401 || r.status === 403) throw new Error(T('{0} rechazó la llave ({1}).', nombre, r.status));
     if (r.status === 429) throw new Error(T('{0} alcanzó su límite de uso (429). Intenta más tarde.', nombre));
-    if (r.status === 0 || r.status >= 500) throw new Error(T('{0} no respondió ({1}). Si es una IA local, revisa que esté corriendo.', nombre, r.status));
+    // El consejo tiene que corresponder al proveedor: a quien usa Gemini no se le puede decir que
+    // revise si su servidor local está corriendo. Y un 5xx remoto no es culpa de su configuración:
+    // decirlo evita que se ponga a cambiar ajustes que estaban bien.
+    if (r.status === 0 || r.status >= 500) throw new Error(local
+      ? T('{0} no respondió ({1}). Revisa que Ollama o LM Studio esté corriendo en este computador.', nombre, r.status)
+      : T('{0} no respondió ({1}): su servicio está caído o sobrecargado. No es tu configuración; vuelve a intentar en un rato.', nombre, r.status));
     if (r.status >= 400) throw new Error(T('{0} respondió {1}: {2}', nombre, r.status, j.error?.message || 'error'));
     return j;
   }
@@ -1573,7 +1581,7 @@ export default class MapaNeuronal extends Plugin {
       response_format: prov === 'local' ? { type: 'json_object' } : { type: 'json_schema', json_schema: { name: 'respuesta', strict: true, schema: esquema } } };
     if (prov === 'local') cuerpo.messages[0].content += '\nResponde SOLO con un objeto JSON con estas claves: ' + Object.keys(esquema.properties).join(', ') + '.';
     const r = await requestUrl({ url, method: 'POST', headers, body: JSON.stringify(cuerpo), throw: false });
-    const j = this.revisarRespuesta(r, prov === 'local' ? 'La IA local' : 'OpenAI');
+    const j = this.revisarRespuesta(r, prov === 'local' ? 'La IA local' : 'OpenAI', prov === 'local');
     return j.choices?.[0]?.message?.content || '';
   }
   async pedirGemini(llave, modelo, sistema, usuario, esquema) {

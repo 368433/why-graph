@@ -1,6 +1,6 @@
 {
   "name": "why-graph",
-  "version": "1.24.1",
+  "version": "1.24.2",
   "description": "A graph that explains itself: your vault as a layered map, with the reason each note links to the next — written by you, or suggested by your own AI with verified quotes.",
   "private": true,
   "type": "module",
