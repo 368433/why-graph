@@ -24,6 +24,12 @@ tomar 03-camino "vista=camino&de=Hotel&a=Mapa"
 tomar 04-vacios "vista=vacios"
 tomar 05-radial "vista=radial&foco=Camila"
 
+# Una toma más, con el vault de cuatro meses de diario: es el caso que justifica las cápsulas.
+if [ -f vault-largo.json ]; then
+  node -e "const fs=require('fs');fs.writeFileSync('vault.js','window.__VAULT = '+fs.readFileSync('vault-largo.json','utf8')+';')"
+  tomar 06-meses ""
+fi
+
 python3 - <<'PY'
 from PIL import Image
 import pathlib

@@ -157,7 +157,60 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msgSinLlave = e.message; }
   p.cierto('sin llave avisa antes de salir a la red', /key is missing/i.test(msgSinLlave));
 
-  // ── 8. Las herramientas también cuelgan del «···» de la pestaña ──────────────────────────────
+  // ── 8. La primera capa se agrupa por mes: 90 días no pueden ser 90 puntos en fila ─────────────
+  const diario = {};
+  for (const mes of ['07', '08', '09']) {
+    for (let d = 1; d <= 30; d++) {
+      const dia = `2026-${mes}-${String(d).padStart(2, '0')}`;
+      diario[`diario/${dia}.md`] = `---\ntema: tienda\nupdated: ${dia}\n---\n\nDía ${d}. Trabajo en [[proyecto-tostador]].\n`;
+    }
+  }
+  const vaultLargo = vaultSimulado(Object.assign({}, NOTAS, diario));
+  const ajLargo = Object.assign({}, AJUSTES);
+  const D2 = await construir(vaultLargo.app, ajLargo);
+  p.igual('las notas fechadas conocen su mes', D2.nodos.filter((n) => n.mes === '2026-08').length, 30);
+  p.igual('una nota sin fecha no tiene mes', (D2.nodos.find((n) => n.id.includes('proyecto-tostador')) || {}).mes, null);
+
+  const v2 = new VistaMapa({}, { ajustes: ajLargo, tieneIA: () => false, app: vaultLargo.app });
+  v2.app = vaultLargo.app; v2.contentEl = el();
+  v2.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
+  v2.ctx = v2.lienzo.getContext(); v2.marca = el(); v2.chips = el(); v2.estado = el(); v2.panel = el(); v2.guia = el();
+  v2.D = D2; v2.plugin.construir = null;
+  await v2.recargar();
+  const capa0 = () => v2.N.filter((n) => n.capa === 0);
+  const capsulas = () => capa0().filter((n) => n.esMes);
+  p.cierto('agrupa sola cuando hay muchas notas fechadas', v2.agrupaMeses);
+  const capsula = (mes) => capsulas().find((n) => n.mes === mes);
+  // cuatro: los tres meses sintéticos más el enero que ya traía el vault de prueba
+  p.igual('un mes, una cápsula', capsulas().length, 4);
+  p.igual('y ninguna nota de diario suelta', capa0().filter((n) => n.mes && !n.esMes).length, 0);
+  p.igual('la cápsula cuenta sus notas sin sumarse a sí misma', capsula('2026-08').agrupados, 30);
+  p.cierto('la cápsula se etiqueta con el mes, no con una ruta', /2026/.test(capsula('2026-08').titulo));
+  p.cierto('los enlaces del mes se agrupan en superenlaces', v2.E.some((e) => e.superE && (e.a.startsWith('mes:') || e.b.startsWith('mes:'))));
+  v2.dibujar();
+  p.cierto('dibuja las cápsulas sin caerse', v2.ctx.llamadas > 50);
+
+  v2.alternarMes('2026-08');
+  p.igual('al abrir un mes, sus 30 notas aparecen', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 30);
+  p.igual('y las otras siguen cerradas', capsulas().length, 3);
+  v2.alternarMes('2026-08');
+  p.igual('se vuelve a cerrar', capsulas().length, 4);
+
+  ajLargo.agruparMesesDesde = 0;
+  await v2.recargar();
+  p.cierto('con el ajuste en 0 no agrupa nunca', !v2.agrupaMeses && capsulas().length === 0);
+  ajLargo.agruparMesesDesde = 24;
+  await v2.recargar();
+  p.cierto('el vault chico de la demo no se agrupa', (await (async () => {
+    const chico = new VistaMapa({}, { ajustes: AJUSTES, tieneIA: () => false, app });
+    chico.app = app; chico.contentEl = el();
+    chico.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
+    chico.ctx = chico.lienzo.getContext(); chico.marca = el(); chico.chips = el(); chico.estado = el(); chico.panel = el(); chico.guia = el();
+    chico.D = D; chico.plugin.construir = null; await chico.recargar();
+    return !chico.agrupaMeses;
+  })()));
+
+  // ── 9. Las herramientas también cuelgan del «···» de la pestaña ──────────────────────────────
   const { Menu } = require('./simulado.cjs').obsidian || {};
   const menuFalso = { items: [], addItem(f) { const c = { titulo: '', setTitle(v) { c.titulo = v; return c; }, setIcon: () => c, setChecked: () => c, onClick: () => c }; this.items.push(c); f(c); return this; }, addSeparator() { this.items.push('---'); return this; } };
   v.onPaneMenu(menuFalso, 'more-options');
@@ -168,7 +221,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   v.onPaneMenu(otroMenu, 'tab-header');
   p.igual('en la cabecera de la pestaña no se mete', otroMenu.items.length, 0);
 
-  // ── 9. El botón «Probar la conexión»: una llamada mínima, sin notas ──────────────────────────
+  // ── 10. El botón «Probar la conexión»: una llamada mínima, sin notas ──────────────────────────
   app._ls = {}; app._ls[CLAVE_IA('claude')] = 'llave-de-prueba';
   pl2.ajustes.proveedorIA = 'claude'; pl2.ajustes.modeloIA = 'claude-opus-5';
   let cuerpoPrueba = null;
@@ -179,7 +232,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   p.cierto('la prueba no manda ninguna nota', !/tostadora|ana-soto|Encargada/i.test(cuerpoPrueba));
   p.cierto('la prueba es corta (menos de 400 caracteres)', cuerpoPrueba.length < 400);
 
-  // ── 10. El asistente de capas propone algo sensato ────────────────────────────────────────────
+  // ── 11. El asistente de capas propone algo sensato ────────────────────────────────────────────
   const filas = detectarCarpetas(app);
   const capaDe = (c) => (filas.find((f) => f.carpeta === c) || {}).capa;
   p.igual('manda el diario a la primera capa', capaDe('diario'), 0);
