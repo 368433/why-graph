@@ -19,7 +19,7 @@
 
 <sub>Cinco vistas reales, sin maquetas: el mapa por capas · una nota con todos sus motivos · los vacíos · un camino entre dos notas · la vista radial</sub>
 
-<a href="https://www.buymeacoffee.com/DbbLabs"><img src="https://img.shields.io/badge/invítame%20un%20café-DbbLabs-F5CF45?style=for-the-badge&logo=buymeacoffee&logoColor=0B1026" alt="Invítame un café"></a>
+<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Invítame un café" height="48"></a>
 
 </div>
 
@@ -372,13 +372,15 @@ de Obsidian, tu plataforma, y el número de notas y enlaces que muestra el encab
   </picture>
 </a>
 
-Hecho por **Felipe Córdova** · Powered by [DBB Labs](https://dontbuybuild.cl)
+Hecho por **Felipe Córdova** · Powered by **[DBB Labs](https://dontbuybuild.cl)**
 
-**No compres. Construye.**
+### Don't Buy. Build.
+
+<sub>Es el nombre de la empresa, no un eslogan: un estudio de sistemas a medida.<br>Compre lo estándar. Construya lo estratégico.</sub>
 
 <sub>Gratis, MIT, sin versión de pago. Si el mapa te mostró algo que no habías visto, un café se
 agradece — y si no, el plugin funciona exactamente igual.</sub>
 
-<a href="https://www.buymeacoffee.com/DbbLabs"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Invítame un café" height="40"></a>
+<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Invítame un café" height="48"></a>
 
 </div>

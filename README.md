@@ -19,7 +19,7 @@
 
 <sub>Five real views, no mock-ups: the layered map · a note with every reason · the gaps · a path between two notes · the radial view</sub>
 
-<a href="https://www.buymeacoffee.com/DbbLabs"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-DbbLabs-F5CF45?style=for-the-badge&logo=buymeacoffee&logoColor=0B1026" alt="Buy me a coffee"></a>
+<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="48"></a>
 
 </div>
 
@@ -372,13 +372,15 @@ version, your platform, and the number of notes and links the map header shows.
   </picture>
 </a>
 
-Built by **Felipe Córdova** · Powered by [DBB Labs](https://dontbuybuild.cl)
+Built by **Felipe Córdova** · Powered by **[DBB Labs](https://dontbuybuild.cl)**
 
-**Don't buy. Build.**
+### Don't Buy. Build.
+
+<sub>That is the company's name, not a slogan: a studio of custom systems.<br>Buy what is standard. Build what is strategic.</sub>
 
 <sub>Free, MIT, no paid tier. If the map showed you something you had not seen, a coffee is welcome —
 and if it did not, the plugin still works exactly the same.</sub>
 
-<a href="https://www.buymeacoffee.com/DbbLabs"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>
+<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="48"></a>
 
 </div>
