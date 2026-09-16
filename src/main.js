@@ -274,7 +274,6 @@ const EN = {
   'Propiedad de fecha de modificación': 'Last-modified property',
   'Si la escribes, al aprobar un motivo se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.':
     'If set, approving a reason writes today’s date in that property of the note. Empty = the plugin never touches the frontmatter.',
-  'Llave guardada en este dispositivo': 'Key stored on this device',
   'Probar la conexión': 'Test the connection',
   'Hace una llamada mínima —unos pocos tokens— y te dice si tu IA responde. Ninguna nota se envía.':
     'Makes one tiny call — a few tokens — and tells you whether your AI answers. No note is sent.',
@@ -1454,12 +1453,20 @@ class AjustesMapa extends PluginSettingTab {
     new Setting(c).setName(T('Proveedor')).setDesc(T('Elige con qué IA se generan los motivos y los resúmenes. Los controles de calidad (citas verificadas y tu aprobación) funcionan con todos.'))
       .addDropdown((d) => d.addOptions(Object.fromEntries(Object.entries(PROVEEDORES).map(([k, v]) => [k, v.nombre]))).setValue(prov)
         .onChange(async (v) => { p.ajustes.proveedorIA = v; p.ajustes.modeloIA = PROVEEDORES[v].modelo; await p.guardar(); this.display(); }));
-    if (def.llave) new Setting(c).setName(T('Llave de la API')).setDesc(p.app.loadLocalStorage(CLAVE_IA(prov)) ? T('Guardada en este dispositivo. ') + T(def.ayuda) : T(def.ayuda))
-      .addText((t) => { t.inputEl.type = 'password';
-        // Pegar una llave y no ver nada deja la duda de si quedó guardada: al salir del campo, se dice.
-        this.registerDomEvent(t.inputEl, 'blur', () => { if (p.app.loadLocalStorage(CLAVE_IA(prov))) new Notice(T('Llave guardada en este dispositivo')); }); t.setPlaceholder(p.app.loadLocalStorage(CLAVE_IA(prov)) ? T('guardada') : T('pega la llave aquí')); t.onChange((v) => { p.app.saveLocalStorage(CLAVE_IA(prov), v.trim() || null); }); })
-      .addButton((b) => b.setButtonText(T('Borrar')).onClick(() => { p.app.saveLocalStorage(CLAVE_IA(prov), null); this.display(); new Notice(T('Llave borrada de este dispositivo')); }));
-    else new Setting(c).setName(T('Sin llave')).setDesc(T(def.ayuda));
+    if (def.llave) {
+      // Pegar una llave en un campo de contraseña y no ver nada deja la duda de si quedó guardada.
+      // El aviso va en la DESCRIPCIÓN de la fila, no en un evento del DOM: `PluginSettingTab` no
+      // es un `Component` y no tiene `registerDomEvent`, así que llamarlo lanzaba un TypeError que
+      // cortaba el dibujado justo aquí — sin botón «Borrar», sin «Modelo» y sin «Probar».
+      // Además la descripción se queda: un aviso que pasa y se va no sirve para comprobar nada.
+      const fila = new Setting(c).setName(T('Llave de la API'));
+      const decir = () => fila.setDesc(p.app.loadLocalStorage(CLAVE_IA(prov)) ? T('Guardada en este dispositivo. ') + T(def.ayuda) : T(def.ayuda));
+      decir();
+      fila.addText((t) => { t.inputEl.type = 'password';
+        t.setPlaceholder(p.app.loadLocalStorage(CLAVE_IA(prov)) ? T('guardada') : T('pega la llave aquí'));
+        t.onChange((v) => { p.app.saveLocalStorage(CLAVE_IA(prov), v.trim() || null); decir(); }); })
+        .addButton((b) => b.setButtonText(T('Borrar')).onClick(() => { p.app.saveLocalStorage(CLAVE_IA(prov), null); this.display(); new Notice(T('Llave borrada de este dispositivo')); }));
+    } else new Setting(c).setName(T('Sin llave')).setDesc(T(def.ayuda));
     if (prov === 'local') new Setting(c).setName(T('Dirección del servidor local')).setDesc(T('Compatible con OpenAI. Ollama usa http://localhost:11434/v1/chat/completions.'))
       .addText((t) => t.setValue(p.ajustes.urlLocal).onChange(async (v) => { p.ajustes.urlLocal = v.trim() || PROVEEDORES.local.url; await p.guardar(); }));
     if (prov === 'claude') new Setting(c).setName(T('Modelo')).setDesc(T(def.modeloAyuda))

@@ -70,7 +70,8 @@ class Componente {
 const obsidian = {
   Plugin: Componente,
   ItemView: class extends Componente { constructor(hoja) { super(); this.leaf = hoja; } },
-  PluginSettingTab: Componente,
+  // No extiende Component en la API real: el doble tampoco debe hacerlo.
+  PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; } },
   Setting: class { constructor() {} setName() { return this; } setDesc() { return this; } setHeading() { return this; } addText(f) { f(campo()); return this; } addTextArea(f) { f(campo()); return this; } addToggle(f) { f(campo()); return this; } addSlider(f) { f(campo()); return this; } addDropdown(f) { f(campo()); return this; } addButton(f) { f(campo()); return this; } },
   Menu: class { addItem(f) { f(campo()); return this; } showAtMouseEvent() {} },
   Modal: class { constructor() { this.contentEl = document.createElement('div'); } setTitle() {} close() {} },
@@ -138,7 +139,6 @@ window.exports = window.module.exports;
     const Tab = window.__AjustesMapa;
     const tab = new Tab(app, plugin);
     tab.containerEl = document.getElementById('hoja');
-    tab.registerDomEvent = (el2, tipo, fn) => el2.addEventListener(tipo, fn);
     let error = '';
     try { tab.display(); } catch (e) { error = e.message; }
     const pie = document.querySelector('.mn-pie'), logo = document.querySelector('.mn-marca-dbb');

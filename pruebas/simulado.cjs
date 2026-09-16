@@ -12,9 +12,10 @@ const Componente = class {
 };
 
 function obsidianSimulado() {
-  const avisos = [];
+  const avisos = [], filas = [];
   return {
     avisos,
+    filas,   // nombres de los Setting creados, en orden: sirve para ver si la pantalla se cortó
     modulo: {
       Plugin: class extends Componente {
         constructor() { super(); this.comandos = []; this.vistas = []; this.ribbon = []; this.pestanas = []; this._datos = null; this.manifest = { id: 'mapa-neuronal', version: '0.0.0-prueba' }; }
@@ -26,10 +27,14 @@ function obsidianSimulado() {
         async saveData(d) { this._datos = JSON.parse(JSON.stringify(d)); }
       },
       ItemView: class extends Componente { constructor(hoja) { super(); this.leaf = hoja; } onPaneMenu() {} },
-      PluginSettingTab: class extends Componente { constructor(app, plugin) { super(); this.app = app; this.plugin = plugin; } },
+      // OJO: `PluginSettingTab` NO extiende `Component` en la API real — no tiene registerEvent,
+      // registerDomEvent ni registerInterval. Darle esos métodos aquí escondía un TypeError que
+      // en Obsidian cortaba la pantalla de ajustes a la mitad. El doble tiene que ser tan pobre
+      // como la clase real, o las pruebas pasan sobre una pantalla rota.
+      PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; } },
       Setting: class {
         constructor(c) { this.c = c; }
-        setName(v) { this.nombre = v; return this; }
+        setName(v) { this.nombre = v; filas.push(v); return this; }
         setDesc(v) { this.desc = v; return this; }
         setHeading() { return this; }
         addText(f) { f(campo()); return this; }
@@ -131,7 +136,7 @@ function cargarPlugin(rutaMain) {
   global.ResizeObserver = global.ResizeObserver || class { observe() {} disconnect() {} };
   new Function('require', 'module', 'exports', texto + '\nmodule.exports.__t = { construir, VistaMapa, AsistenteCapas, AjustesMapa, AJUSTES_BASE, PROVEEDORES, CAPAS_ESTANDAR, EN, T, enlacesDe, detectarCarpetas, leerAjustes, CLAVE_IA };')(
     (n) => (n === 'obsidian' ? sim.modulo : require(n)), m, m.exports);
-  return { Plugin: m.exports.default || m.exports, interno: m.exports.__t, avisos: sim.avisos };
+  return { Plugin: m.exports.default || m.exports, interno: m.exports.__t, avisos: sim.avisos, filas: sim.filas };
 }
 
 /* Marcador de pruebas mínimo: cuenta y explica la primera diferencia. */
