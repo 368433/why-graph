@@ -1,7 +1,7 @@
 {
   "name": "why-graph",
-  "version": "1.26.0",
-  "description": "A graph that explains itself: your vault as a layered map, with the reason each note links to the next — written by you, or suggested by your own AI with verified quotes.",
+  "version": "1.26.1",
+  "description": "The map for your LLM wiki: raw sources, notes and syntheses as layers, with the reason each link exists — written by you or suggested by your AI. Works with any structured vault.",
   "private": true,
   "type": "module",
   "scripts": {

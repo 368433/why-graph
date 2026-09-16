@@ -6,6 +6,8 @@
 
 **Obsidian's graph shows you *that* two notes are linked. This one shows you *why*.**
 
+Made for [LLM wikis](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) · works with any vault that has structure
+
 [![version](https://img.shields.io/github/v/release/DBB-FC/why-graph?label=version&color=1FC8B4&style=flat-square)](https://github.com/DBB-FC/why-graph/releases/latest)
 [![release](https://img.shields.io/github/actions/workflow/status/DBB-FC/why-graph/release.yml?label=build&color=34D17A&style=flat-square)](https://github.com/DBB-FC/why-graph/actions)
 [![Obsidian 1.8.7+](https://img.shields.io/badge/Obsidian-1.8.7+-B79CFF?style=flat-square)](https://obsidian.md)
