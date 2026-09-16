@@ -10,9 +10,9 @@
  * repo a un modelo y no tiene un modo para evitarlo, y el código de un cliente no puede salir.
  *
  * Qué produce:
- *   L0 Rutas       src/app y el middleware — lo que el usuario visita
- *   L1 Módulos     los archivos de src/features/<función>
- *   L2 Compartido  src/shared y src/lib
+ *   L0 Compartido  src/shared y src/lib — la caja de herramientas
+ *   L1 Rutas       src/app y el middleware — lo que el usuario visita
+ *   L2 Módulos     los archivos de src/features/<función>
  *   L3 Datos       las tablas y buckets de Supabase que el código lee o escribe
  *   L4 Funciones   una síntesis por función del producto (pagos, cobros…)
  *
@@ -43,7 +43,13 @@ let ts;
 try { ts = createRequire(join(REPO, 'package.json'))('typescript'); }
 catch { console.error('El repo no tiene typescript instalado (npm install en el repo).'); process.exit(1); }
 
-const CAPAS = ['L0 Rutas', 'L1 Módulos', 'L2 Compartido', 'L3 Datos', 'L4 Funciones'];
+// El orden sale de medir, no de gusto. Con «Rutas → Módulos → Compartido → Datos» la columna
+// Compartido quedaba entre los módulos y las tablas sin un solo enlace hacia los datos: el código
+// compartido no consulta tablas, y las 75 consultas saltaban por encima y se dibujaban tenues.
+// Con lo compartido a la izquierda, el recorrido de una petición —ruta → módulo → tabla— queda
+// contiguo, y pasan de 201 a 242 los enlaces entre columnas vecinas.
+const [COMPARTIDO, RUTAS, MODULOS, DATOS, FUNCIONES] = [0, 1, 2, 3, 4];
+const CAPAS = ['L0 Compartido', 'L1 Rutas', 'L2 Módulos', 'L3 Datos', 'L4 Funciones'];
 
 // ── 1. Los archivos ─────────────────────────────────────────────────────────────────────────────
 const archivos = [];
@@ -69,17 +75,17 @@ function describir(abs) {
   if (raiz === 'app') {
     const ruta = '/' + resto.filter((x) => !/^\(.*\)$/.test(x) && !['page', 'layout', 'route', 'loading', 'error', 'not-found', 'template'].includes(x)).join('/');
     const tipo = resto[resto.length - 1];
-    return { capa: 0, nombre: limpio('ruta.' + resto.join('.')), titulo: `${ruta === '/' ? '/' : ruta} · ${tipo}`, funcion: null };
+    return { capa: RUTAS, nombre: limpio('ruta.' + resto.join('.')), titulo: `${ruta === '/' ? '/' : ruta} · ${tipo}`, funcion: null };
   }
-  if (raiz === 'middleware') return { capa: 0, nombre: 'middleware', titulo: 'middleware', funcion: null };
+  if (raiz === 'middleware') return { capa: RUTAS, nombre: 'middleware', titulo: 'middleware', funcion: null };
   if (raiz === 'features' && resto.length > 1) {
     const [funcion, ...camino] = resto;
-    return { capa: 1, nombre: limpio(`${funcion}.${camino.join('.')}`), titulo: `${funcion} · ${camino.join('/')}`, funcion };
+    return { capa: MODULOS, nombre: limpio(`${funcion}.${camino.join('.')}`), titulo: `${funcion} · ${camino.join('/')}`, funcion };
   }
   if (raiz === 'shared' || raiz === 'lib') {
-    return { capa: 2, nombre: limpio(`${raiz}.${resto.join('.')}`), titulo: `${raiz} · ${resto.join('/')}`, funcion: null };
+    return { capa: COMPARTIDO, nombre: limpio(`${raiz}.${resto.join('.')}`), titulo: `${raiz} · ${resto.join('/')}`, funcion: null };
   }
-  return { capa: 2, nombre: limpio(partes.join('.')), titulo: partes.join('/'), funcion: null };
+  return { capa: COMPARTIDO, nombre: limpio(partes.join('.')), titulo: partes.join('/'), funcion: null };
 }
 
 // ── 3. Leer cada archivo con el compilador ──────────────────────────────────────────────────────
@@ -179,7 +185,7 @@ const masFrecuente = (lista) => {
 };
 for (const m of modulos.values()) {
   if (m.funcion) m.tema = m.funcion;
-  else if (m.capa === 0) m.tema = masFrecuente([...m.enlaces.keys()].map((d) => modulos.get(d)?.funcion)) || 'sitio';
+  else if (m.capa === RUTAS) m.tema = masFrecuente([...m.enlaces.keys()].map((d) => modulos.get(d)?.funcion)) || 'sitio';
   else m.tema = 'compartido';
 }
 for (const d of datos.values()) {
@@ -191,15 +197,32 @@ for (const d of datos.values()) {
 // Solo se borran las carpetas que este guion genera: nunca el vault entero, que puede tener la
 // configuración de Obsidian que el usuario ya ajustó.
 mkdirSync(SALIDA, { recursive: true });
-for (const c of CAPAS) { rmSync(join(SALIDA, c), { recursive: true, force: true }); mkdirSync(join(SALIDA, c), { recursive: true }); }
+// Las carpetas «L<n> nombre» son todas de este guion, también las de corridas anteriores con otro
+// orden de capas: se borran para que no queden notas viejas dibujándose en la columna equivocada.
+for (const c of readdirSync(SALIDA)) if (/^L\d /.test(c)) rmSync(join(SALIDA, c), { recursive: true, force: true });
+for (const c of CAPAS) mkdirSync(join(SALIDA, c), { recursive: true });
 
 const yaml = (s) => JSON.stringify(String(s));   // una cadena JSON es YAML válido y escapa todo
 const nombreDe = (abs) => modulos.get(abs).nombre;
-let enlaces = 0;
+let enlaces = 0, omitidos = 0;
+
+// Fontanería: piezas que casi todo usa y que no explican nada de la arquitectura. Un ícono que
+// importan 48 archivos dibuja 48 líneas y no dice cómo funciona el sistema; los clientes de Supabase
+// son la conexión a la base, no una decisión de diseño. Medido en el piloto: el 22 % de las líneas.
+// Se sacan del DIBUJO, no del análisis: el informe las sigue contando.
+// Excepción: si una de estas piezas toca una tabla, se queda. Un componente visual que escribe en la
+// base de datos es justo lo que el mapa tiene que mostrar.
+const FONTANERIA = [/^src\/shared\/(components|ui)\//, /^src\/(shared\/)?lib\/supabase\//];
+const esFontaneria = (abs) => {
+  const m = modulos.get(abs);
+  return !!m && m.datos.size === 0 && FONTANERIA.some((r) => r.test(m.ruta));
+};
 
 for (const [abs, m] of modulos) {
+  if (esFontaneria(abs)) continue;
   const lineas = [];
   for (const [destino, k] of [...m.enlaces].sort((a, b) => nombreDe(a[0]).localeCompare(nombreDe(b[0])))) {
+    if (esFontaneria(destino)) { omitidos++; continue; }
     const nombres = [...k.nombres].slice(0, 6);
     const mas = k.nombres.size > 6 ? ` y ${k.nombres.size - 6} más` : '';
     lineas.push(`- [[${nombreDe(destino)}]] — ${k.verbo}${nombres.length ? ' ' + nombres.join(', ') + mas : ''}`);
@@ -212,7 +235,7 @@ for (const [abs, m] of modulos) {
     lineas.push(`- [[${id}]] — ${verbo} ${d.tipo === 'bucket' ? 'el bucket' : 'la tabla'} «${d.nombre}»`);
     enlaces++;
   }
-  const resumen = m.resumen || `Módulo ${m.funcion ? `de la función «${m.funcion}»` : m.capa === 0 ? 'de entrada' : 'compartido'}` +
+  const resumen = m.resumen || `Módulo ${m.funcion ? `de la función «${m.funcion}»` : m.capa === RUTAS ? 'de entrada' : 'compartido'}` +
     (m.exports.length ? `. Ofrece ${m.exports.slice(0, 4).join(', ')}${m.exports.length > 4 ? '…' : ''}.` : '.');
   writeFileSync(join(SALIDA, CAPAS[m.capa], m.nombre + '.md'), [
     '---',
@@ -234,7 +257,7 @@ for (const [abs, m] of modulos) {
 
 for (const [id, d] of datos) {
   const lista = (set) => [...set].map((a) => `\`${modulos.get(a).ruta}\``).sort().join(', ') || '—';
-  writeFileSync(join(SALIDA, CAPAS[3], id + '.md'), [
+  writeFileSync(join(SALIDA, CAPAS[DATOS], id + '.md'), [
     '---',
     `title: ${yaml(d.nombre)}`,
     `tema: ${yaml(d.tema)}`,
@@ -258,7 +281,7 @@ for (const [id, d] of datos) {
 for (const f of funciones) {
   const propios = [...modulos.entries()].filter(([, m]) => m.funcion === f);
   const tablas = [...datos.entries()].filter(([, d]) => d.tema === f);
-  const rutas = [...modulos.values()].filter((m) => m.capa === 0 && m.tema === f);
+  const rutas = [...modulos.values()].filter((m) => m.capa === RUTAS && m.tema === f);
   let resumen = '';
   const leeme = join(SRC, 'features', f, 'README.md');
   if (existsSync(leeme)) {
@@ -266,7 +289,7 @@ for (const f of funciones) {
     if (parrafo && !PARECE_SECRETO.test(parrafo)) resumen = parrafo.replace(/\s+/g, ' ').slice(0, 280);
   }
   if (!resumen) resumen = `La función «${f}»: ${propios.length} módulo(s), ${tablas.length} tabla(s) propias y ${rutas.length} ruta(s) que la usan.`;
-  writeFileSync(join(SALIDA, CAPAS[4], `funcion.${limpio(f)}.md`), [
+  writeFileSync(join(SALIDA, CAPAS[FUNCIONES], `funcion.${limpio(f)}.md`), [
     '---',
     `title: ${yaml(f)}`,
     `tema: ${yaml(f)}`,
@@ -278,7 +301,7 @@ for (const f of funciones) {
     '',
     '## Conexiones',
     '',
-    ...propios.map(([, m]) => `- [[${m.nombre}]] — módulo de la función`).sort(),
+    ...propios.filter(([k]) => !esFontaneria(k)).map(([, m]) => `- [[${m.nombre}]] — módulo de la función`).sort(),
     ...tablas.map(([id, d]) => `- [[${id}]] — ${d.tipo === 'bucket' ? 'bucket' : 'tabla'} que la función escribe o lee`).sort(),
     '',
   ].join('\n'));
@@ -301,7 +324,7 @@ const temas = [
 ].join('\n');
 const ajustesPrevios = existsSync(join(destinoPlugin, 'data.json')) ? JSON.parse(readFileSync(join(destinoPlugin, 'data.json'), 'utf8')) : {};
 writeFileSync(join(destinoPlugin, 'data.json'), JSON.stringify(Object.assign(ajustesPrevios, {
-  capas: 'Rutas | lo que el usuario visita\nMódulos | el código de cada función\nCompartido | piezas que usan varias funciones\nDatos | tablas y buckets de Supabase\nFunciones | una síntesis por función',
+  capas: 'Compartido | piezas que usan varias funciones\nRutas | lo que el usuario visita\nMódulos | el código de cada función\nDatos | tablas y buckets de Supabase\nFunciones | una síntesis por función',
   carpetas: CAPAS.map((c, i) => `${c} = ${i}`).join('\n'),
   propiedadTema: 'tema',
   temas,
@@ -330,8 +353,8 @@ writeFileSync(join(SALIDA, '.obsidian', 'community-plugins.json'), JSON.stringif
     }
   }
   // Nadie lo importa. Las rutas y el middleware quedan fuera: Next.js los llama sin importarlos.
-  const huerfanos = [...modulos.entries()].filter(([k, m]) => m.capa > 0 && entrantes.get(k) === 0).map(([, m]) => `\`${m.ruta}\``).sort();
-  const masUsados = [...modulos.entries()].filter(([, m]) => m.capa > 0).sort((a, b) => entrantes.get(b[0]) - entrantes.get(a[0])).slice(0, 5)
+  const huerfanos = [...modulos.entries()].filter(([k, m]) => m.capa !== RUTAS && entrantes.get(k) === 0).map(([, m]) => `\`${m.ruta}\``).sort();
+  const masUsados = [...modulos.entries()].filter(([, m]) => m.capa !== RUTAS).sort((a, b) => entrantes.get(b[0]) - entrantes.get(a[0])).slice(0, 5)
     .map(([k, m]) => `\`${m.ruta}\` — lo importan ${entrantes.get(k)} módulos`);
   const soloEscritas = [...datos.values()].filter((d) => d.escritores.size && !d.lectores.size).map((d) => `«${d.nombre}» — la escriben ${d.escritores.size}`);
   const soloLeidas = [...datos.values()].filter((d) => d.lectores.size && !d.escritores.size).map((d) => `«${d.nombre}» — la leen ${d.lectores.size}`);
@@ -354,16 +377,19 @@ writeFileSync(join(SALIDA, '.obsidian', 'community-plugins.json'), JSON.stringif
     ...bloque('Tablas que se leen y nadie escribe desde el código', 'Se llenan por otra vía: migraciones, el panel de Supabase, otro sistema. Conviene saber cuál.', soloLeidas),
     ...bloque('Módulos que nadie importa', 'Candidatos a código muerto. Los componentes que Next.js carga solos no están acá: solo módulos de funciones y compartidos.', huerfanos),
     ...bloque('Los módulos de los que más depende el resto', 'Donde un cambio pesa más. Merecen pruebas antes que nada.', masUsados),
+    ...bloque('Lo que el mapa no dibuja', `Piezas que casi todo usa y que no explican la arquitectura: componentes visuales compartidos y los clientes de Supabase. Se sacaron del dibujo (${omitidos} líneas) para que el mapa se lea; siguen contadas en este informe.`,
+      [...modulos.entries()].filter(([k]) => esFontaneria(k)).sort((a, b) => entrantes.get(b[0]) - entrantes.get(a[0]))
+        .map(([k, m]) => `\`${m.ruta}\` — la usa${entrantes.get(k) === 1 ? "" : "n"} ${entrantes.get(k)} módulo${entrantes.get(k) === 1 ? "" : "s"}`)),
     dinamicas ? `_${dinamicas} acceso(s) a Supabase usan un nombre de tabla variable y no se pudieron ubicar sin ejecutar el código._\n` : '',
   ].join('\n'));
 }
 
 // ── 7. El resumen para quien lo corre ───────────────────────────────────────────────────────────
-const porCapa = [0, 1, 2].map((c) => [...modulos.values()].filter((m) => m.capa === c).length);
+const porCapa = CAPAS.map((_, c) => c === DATOS ? datos.size : c === FUNCIONES ? funciones.length : [...modulos.entries()].filter(([k, m]) => m.capa === c && !esFontaneria(k)).length);
 console.log(`Mapa de ${relative(resolve(REPO, '..'), REPO)}`);
 console.log(`  ${archivos.length} archivos leídos · sin IA · sin red`);
-CAPAS.forEach((c, i) => console.log(`  ${c.padEnd(14)} ${i < 3 ? porCapa[i] : i === 3 ? datos.size : funciones.length} nodos`));
-console.log(`  ${enlaces} enlaces, todos con su motivo`);
+CAPAS.forEach((c, i) => console.log(`  ${c.padEnd(14)} ${porCapa[i]} nodos`));
+console.log(`  ${enlaces} enlaces dibujados, todos con su motivo · ${omitidos} de fontanería fuera del dibujo`);
 console.log(`  ${funciones.length} funciones con color: ${funciones.join(', ')}`);
 if (dinamicas) console.log(`  ${dinamicas} acceso(s) a Supabase con nombre variable: no se pueden ubicar sin ejecutar el código`);
 console.log(`  → ${SALIDA}`);
