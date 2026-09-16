@@ -279,13 +279,15 @@ const EN = {
   'Funciona: {0} respondió.': 'It works: {0} answered.',
   '{0} respondió algo inesperado. Prueba con otro modelo.': '{0} answered something unexpected. Try another model.',
   // proveedores
-  'Crea la llave en console.anthropic.com, sección API keys.': 'Create the key at console.anthropic.com, API keys section.',
+  'Crea la llave en console.anthropic.com, sección API keys. Una suscripción de Claude (Pro o Max) no sirve: la API se paga por uso.':
+    'Create the key at console.anthropic.com, API keys section. A Claude subscription (Pro or Max) does not work: the API is paid per use.',
   'claude-opus-5 es el más preciso (97,7 % en nuestra prueba). claude-sonnet-5 y claude-haiku-4-5 son más baratos.':
     'claude-opus-5 is the most accurate (97.7% in our test). claude-sonnet-5 and claude-haiku-4-5 are cheaper.',
   'Crea la llave en platform.openai.com. Una suscripción de ChatGPT no sirve: la API se paga por uso.':
     'Create the key at platform.openai.com. A ChatGPT subscription does not work: the API is paid per use.',
   'Escribe el identificador del modelo, como aparece en la documentación de OpenAI.': "Type the model identifier, as it appears in OpenAI's documentation.",
-  'Crea la llave en aistudio.google.com.': 'Create the key at aistudio.google.com.',
+  'Crea la llave en aistudio.google.com. Tiene una capa gratuita con límites de uso.':
+    'Create the key at aistudio.google.com. It has a free tier with usage limits.',
   'Escribe el identificador del modelo, como aparece en la documentación de Gemini.': "Type the model identifier, as it appears in Gemini's documentation.",
   'Gratis y sin enviar tus notas a internet. Necesitas Ollama o LM Studio corriendo en este computador. No funciona en el celular.':
     'Free, and your notes never leave your computer. You need Ollama or LM Studio running here. Not available on mobile.',
@@ -350,9 +352,9 @@ const AJUSTES_BASE = {
 // Las llaves viven en el localStorage del vault (por dispositivo): NO viajan por Sync ni por git.
 const CLAVE_IA = (proveedor) => `mapa-neuronal-key-${proveedor}`;
 const PROVEEDORES = {
-  claude: { nombre: 'Claude (Anthropic)', url: 'https://api.anthropic.com/v1/messages', llave: true, ayuda: 'Crea la llave en console.anthropic.com, sección API keys.', modeloAyuda: 'claude-opus-5 es el más preciso (97,7 % en nuestra prueba). claude-sonnet-5 y claude-haiku-4-5 son más baratos.', modelo: 'claude-opus-5' },
+  claude: { nombre: 'Claude (Anthropic)', url: 'https://api.anthropic.com/v1/messages', llave: true, ayuda: 'Crea la llave en console.anthropic.com, sección API keys. Una suscripción de Claude (Pro o Max) no sirve: la API se paga por uso.', modeloAyuda: 'claude-opus-5 es el más preciso (97,7 % en nuestra prueba). claude-sonnet-5 y claude-haiku-4-5 son más baratos.', modelo: 'claude-opus-5' },
   openai: { nombre: 'OpenAI (ChatGPT)', url: 'https://api.openai.com/v1/chat/completions', llave: true, ayuda: 'Crea la llave en platform.openai.com. Una suscripción de ChatGPT no sirve: la API se paga por uso.', modeloAyuda: 'Escribe el identificador del modelo, como aparece en la documentación de OpenAI.', modelo: '' },
-  gemini: { nombre: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/models', llave: true, ayuda: 'Crea la llave en aistudio.google.com.', modeloAyuda: 'Escribe el identificador del modelo, como aparece en la documentación de Gemini.', modelo: '' },
+  gemini: { nombre: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/models', llave: true, ayuda: 'Crea la llave en aistudio.google.com. Tiene una capa gratuita con límites de uso.', modeloAyuda: 'Escribe el identificador del modelo, como aparece en la documentación de Gemini.', modelo: '' },
   local: { nombre: 'IA local (Ollama, LM Studio)', url: 'http://localhost:11434/v1/chat/completions', llave: false, ayuda: 'Gratis y sin enviar tus notas a internet. Necesitas Ollama o LM Studio corriendo en este computador. No funciona en el celular.', modeloAyuda: 'El nombre del modelo que descargaste, por ejemplo el que muestra «ollama list».', modelo: '' },
 };
 const RAW = /raw\/(articles\/[\w\-.]+\.(?:md|pdf)|daily\/\d{4}-\d{2}-\d{2})/g;

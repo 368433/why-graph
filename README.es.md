@@ -134,7 +134,30 @@ la interfaz.
 
 ![La sección de IA en los ajustes: proveedor, llave y el botón de probar](docs/imagenes/06-ia.webp)
 
-Configurarla son cuatro campos: eliges el proveedor, pegas tu llave, eliges el modelo y
+### ¿Funciona con mi suscripción de Claude o de ChatGPT?
+
+**No, y ningún plugin puede.** Las suscripciones (Claude Pro/Max, ChatGPT Plus) pagan las apps
+del proveedor; no existe una API pública que se autentique con una suscripción. La API es otro
+producto, y se cobra por token con crédito prepagado.
+
+Tres formas de resolverlo:
+
+- **IA local — gratis.** Ollama o LM Studio en tu propia máquina: sin llave, sin costo, y tus
+  notas nunca salen del computador. Es la respuesta si no quieres pagar por uso.
+- **Tu propia llave.** Unos centavos por sugerencia: **≈0,04 USD** con Claude Opus 5 (las dos
+  notas más la revisión). Las cuentas nuevas de la API reciben crédito gratis para probar.
+- **Sin IA.** El mapa completo funciona sin ella. La IA solo propone motivos para los enlaces
+  que no tienen uno; todo lo demás —capas, caminos, vacíos, radial, exportar— no hace ninguna
+  llamada de red.
+
+Los plugins que parecen funcionar "con una sola suscripción" hacen una de dos cosas: usan un
+modelo local (gratis, como la opción de arriba), o pagan la API con la llave del desarrollador
+y te cobran una suscripción por eso — lo que significa que **tus notas pasan por su servidor**.
+Este plugin no tiene servidor, así que ese canje no está sobre la mesa.
+
+### Cómo se configura
+
+Cuatro campos: eliges el proveedor, pegas tu llave, eliges el modelo y
 aprietas **Probar la conexión** — una llamada mínima que te dice si responde, sin enviar
 ninguna nota. La llave queda solo en ese dispositivo.
 

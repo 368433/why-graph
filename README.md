@@ -135,7 +135,30 @@ the interface.
 
 ![The AI section of the settings: provider, key, and the test button](docs/imagenes/06-ia.webp)
 
-Setting it up is four fields: pick the provider, paste your key, choose the model, and press
+### Does it work with my Claude or ChatGPT subscription?
+
+**No, and no plugin can.** Subscriptions (Claude Pro/Max, ChatGPT Plus) pay for the vendor's
+own apps; there is no public API you can authenticate with a subscription. The API is a
+separate product, billed per token with prepaid credit.
+
+Three ways to deal with that:
+
+- **Local AI — free.** Ollama or LM Studio on your own machine: no key, no cost, and your
+  notes never leave the computer. This is the answer if you do not want to pay per use.
+- **Your own key.** A few cents per suggestion — roughly **$0.04** with Claude Opus 5 (two
+  notes plus the review pass). New API accounts get free credit to try it.
+- **No AI at all.** The whole map works without any of it. The AI only proposes reasons for
+  links that do not have one; everything else — layers, paths, gaps, radial, export — never
+  makes a network call.
+
+Plugins that appear to run on "one subscription" are doing one of two things: using a local
+model (free, like the option above), or paying the API with the developer's own key and
+charging you a subscription for it — which means **your notes pass through their server**.
+This plugin has no server, so that trade is not on the table.
+
+### How to set it up
+
+Four fields: pick the provider, paste your key, choose the model, and press
 **Test the connection** — one tiny call that tells you whether it answers, without sending
 any note. The key is stored on this device only.
 
