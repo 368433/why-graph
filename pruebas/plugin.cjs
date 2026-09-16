@@ -112,6 +112,19 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
     return /## Conexiones\n\n- \[\[ana-soto\]\] — la nombra ese día/.test(notas['diario/2026-01-03.md']);
   })());
 
+  // Aprobar un RESUMEN también modifica la nota, así que también le toca la fecha de hoy. Antes
+  // solo se estampaba al aprobar un motivo: la nota quedaba tocada con una fecha vieja, y en un
+  // wiki donde esa fecha dice qué está al día, eso miente sin avisar.
+  pl2.ajustes.propiedadFecha = '';
+  await pl2.aprobarResumen('temas/tema-tienda.md', { resumen: 'Síntesis de la tienda.', citas: [], modelo: 'prueba' });
+  p.cierto('el resumen se guarda en la propiedad resumen', /resumen: Síntesis de la tienda\./.test(notas['temas/tema-tienda.md']));
+  // La nota ya traía updated: 2026-01-06. Sin la propiedad configurada, ese valor no se toca.
+  p.cierto('sin propiedad de fecha configurada, deja la fecha que ya estaba', notas['temas/tema-tienda.md'].includes('updated: 2026-01-06'));
+  pl2.ajustes.propiedadFecha = 'updated';
+  await pl2.aprobarResumen('temas/tema-tienda.md', { resumen: 'Segunda síntesis.', citas: [], modelo: 'prueba' });
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  p.cierto('aprobar un resumen estampa la fecha de hoy', notas['temas/tema-tienda.md'].includes('updated: ' + hoyStr));
+
   // ── 6. La verificación de citas, que es el candado del producto ──────────────────────────────
   p.igual('acepta una cita literal', pl2.verificarCita('turno de la mañana', 'Encargada del turno de la mañana.'), true);
   p.igual('acepta cambios de espacios y de negrita', pl2.verificarCita('**turno**   de la   mañana', 'Encargada del turno de la mañana.'), true);
