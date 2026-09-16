@@ -160,6 +160,8 @@ const EN = {
   'Reintentar': 'Try again',
   'Descartar': 'Discard',
   'Motivo escrito en la nota y registrado.': 'Reason written in the note and logged.',
+  '✓ Guardado en la propiedad resumen de la nota': '✓ Saved to the note\'s summary property',
+  '✓ Escrito en la nota y registrado': '✓ Written to the note and logged',
   'Resumen guardado en la propiedad resumen de la nota.': "Summary saved in the note's summary property.",
   'Cita de la nota de origen': 'Quote from the source note',
   'Cita de la nota enlazada': 'Quote from the linked note',
@@ -336,6 +338,9 @@ const MARCA = 'DBB Labs';
 // El nombre visible. El id del plugin sigue siendo «mapa-neuronal»: cambiarlo costaría la
 // ficha del directorio y las instalaciones. Los nombres de archivo también se dejan quietos.
 const NOMBRE = 'Why Graph';
+// Los rótulos de capa son informativos, no una alarma: iban en el mismo rojo que los vacíos y
+// los problemas de salud, y el mapa entero se leía como si algo estuviera mal.
+const TENUE_ROTULO = 'rgba(230,234,255,.48)';
 const PALETA = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635'];
 const AJUSTES_BASE = {
   capas: 'Entrada | notas con fecha\nNotas | el resto del vault',
@@ -1013,12 +1018,25 @@ class VistaMapa extends ItemView {
         ctx.strokeStyle = 'rgba(170,185,255,.2)'; ctx.lineWidth = 1 / vista.k; ctx.strokeRect(c.x - 14, c.y0, 28, c.y1 - c.y0);
         ctx.textAlign = i === ultima ? 'right' : 'left'; const lx = i === ultima ? c.x + 14 : c.x - 14;
         ctx.fillStyle = '#FFFFFF'; ctx.font = f(600, 12.5);
-        const tituloCapa = `${c.def[0]} · ${c.def[1]}`, wt = ctx.measureText(tituloCapa).width;
+        // El rótulo de una capa solo puede usar el aire que hay hasta la capa siguiente. Al abrir
+        // el panel las columnas se juntan, pero los textos medían lo mismo: se montaban unos
+        // sobre otros y quedaban ilegibles. Se recorta a lo que cabe, y lo primero que cae es la
+        // descripción —«fuentes y diario»— porque el nombre y la cuenta importan más.
+        const sig = this.capas[i + 1], ant = this.capas[i - 1];
+        const hueco = Math.max(64, sig ? sig.x - 14 - lx - 12 : ant ? lx - (ant.x - 14) - 12 : Infinity);
+        const acortar = (t) => {
+          if (ctx.measureText(t).width <= hueco) return t;
+          let corto = t;
+          while (corto.length > 1 && ctx.measureText(corto + '…').width > hueco) corto = corto.slice(0, -1);
+          return corto + '…';
+        };
+        const tituloCapa = acortar(`${c.def[0]} · ${c.def[1]}`), wt = ctx.measureText(tituloCapa).width;
         cajas.push({ x: (i === ultima ? lx - wt : lx) - 4, y: c.y0 - 22 - 14 / sk, w: wt + 8, h: 30 / sk });
         ctx.fillText(tituloCapa, lx, c.y0 - 22);
-        ctx.fillStyle = '#FF6B6B'; ctx.font = f(400, 10.5);
+        ctx.fillStyle = TENUE_ROTULO; ctx.font = f(400, 10.5);
+        const cuenta = `${T('{0} nodos', c.n)}${this.ocultas?.[i] ? T(' · +{0} ocultas', this.ocultas[i]) : ''}`;
         const descripcion = c.def[2] && !this.angosto() ? ' · ' + c.def[2] : ''; // en el celular no cabe
-        ctx.fillText(`${T('{0} nodos', c.n)}${this.ocultas?.[i] ? T(' · +{0} ocultas', this.ocultas[i]) : ''}${descripcion}`, lx, c.y0 - 8);
+        ctx.fillText(acortar(ctx.measureText(cuenta + descripcion).width > hueco ? cuenta : cuenta + descripcion), lx, c.y0 - 8);
         ctx.textAlign = 'left';
       });
     }
@@ -1325,10 +1343,20 @@ class VistaMapa extends ItemView {
       if (res.revision) caja.createDiv({ cls: 'mn-ia-rev', text: res.revision.fiel ? T('✓ Segunda revisión: fiel a la nota') : T('✕ Segunda revisión: ') + res.revision.problema });
       if (res.advertencia) caja.createDiv({ cls: 'mn-ia-rev', text: '⚠ ' + res.advertencia });
       const acc = caja.createDiv('mn-acciones');
-      if (res.aprobable) { const ok = acc.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y guardar en la nota') }); ok.onclick = async () => { ok.disabled = true; await this.plugin.aprobarResumen(n.ruta, res); new Notice(T('Resumen guardado en la propiedad resumen de la nota.')); }; }
+      // Guardar y dejar la caja idéntica —con «Reintentar» y «Descartar» todavía ahí— hace dudar
+      // de si el clic entró. La caja pasa a estado guardado y los botones de rehacer desaparecen:
+      // ya no hay nada que reintentar ni que descartar.
+      if (res.aprobable) { const ok = acc.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y guardar en la nota') }); ok.onclick = async () => { ok.disabled = true; await this.plugin.aprobarResumen(n.ruta, res); new Notice(T('Resumen guardado en la propiedad resumen de la nota.')); this.marcarGuardado(caja, acc, T('✓ Guardado en la propiedad resumen de la nota')); }; }
       acc.createEl('button', { cls: 'mn-btn', text: T('Reintentar') }).onclick = () => this.proponerResumen(n, zona);
       acc.createEl('button', { cls: 'mn-btn', text: T('Descartar') }).onclick = () => zona.empty();
     } catch (err) { zona.empty(); zona.createDiv({ cls: 'mn-ia-estado mn-falta', text: '✕ ' + (err.message || String(err)) }); }
+  }
+  // La caja queda en estado guardado: se dice qué pasó y se quitan los botones de rehacer, que
+  // ya no aplican. Antes la pantalla no cambiaba en nada y solo quedaba el aviso, que se va.
+  marcarGuardado(caja, acciones, texto) {
+    acciones.empty();
+    caja.addClass('guardada');
+    caja.createDiv({ cls: 'mn-ia-guardado', text: texto });
   }
   // Sugerencia con IA en tres candados: citas textuales · verificación por código · segunda revisión.
   async sugerirMotivo(fr, zona) {
@@ -1348,7 +1376,7 @@ class VistaMapa extends ItemView {
       const acc = caja.createDiv('mn-acciones');
       if (res.aprobable) {
         const ok = acc.createEl('button', { cls: 'mn-btn mn-btn-primario', text: T('Aprobar y escribir en la nota') });
-        ok.onclick = async (e) => { e.stopPropagation(); ok.disabled = true; await this.plugin.aprobar(fr, res); new Notice(T('Motivo escrito en la nota y registrado.')); };
+        ok.onclick = async (e) => { e.stopPropagation(); ok.disabled = true; await this.plugin.aprobar(fr, res); new Notice(T('Motivo escrito en la nota y registrado.')); this.marcarGuardado(caja, acc, T('✓ Escrito en la nota y registrado')); };
       }
       const otra = acc.createEl('button', { cls: 'mn-btn', text: T('Reintentar') }); otra.onclick = (e) => { e.stopPropagation(); this.sugerirMotivo(fr, zona); };
       const no = acc.createEl('button', { cls: 'mn-btn', text: T('Descartar') }); no.onclick = (e) => { e.stopPropagation(); zona.empty(); };
