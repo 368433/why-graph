@@ -1,4 +1,4 @@
-# Mapa neuronal
+# Why Graph
 
 *Español · [Read in English](README.md)*
 
@@ -8,7 +8,7 @@ con la siguiente.**
 El grafo de Obsidian te muestra *que* dos notas están enlazadas. Nunca te dice *por qué*.
 Con unos cientos de notas es una madeja: bonita, e inútil para pensar.
 
-Mapa neuronal ordena tus notas en capas, de izquierda a derecha, como la información se
+Why Graph ordena tus notas en capas, de izquierda a derecha, como la información se
 mueve de verdad en una base de conocimiento: lo que entra → de qué se trata → lo que
 aprendiste → en qué se sintetiza. Toca cualquier nota y obtienes la frase en la que se
 escribió el enlace. No una suposición: la línea real de tu propia nota.
@@ -88,7 +88,7 @@ se escriba una línea en tu nota. La versión interactiva del diagrama está en
 
 ### Desde el directorio de la comunidad
 
-Complementos de la comunidad → Explorar → buscar "Mapa neuronal" → Instalar → Activar.
+Complementos de la comunidad → Explorar → buscar "Why Graph" → Instalar → Activar.
 *(En revisión al momento de escribir esto — mientras tanto, cualquiera de las dos formas de abajo.)*
 
 ### Con BRAT — se instala y se actualiza solo

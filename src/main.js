@@ -1,4 +1,8 @@
-/* Mapa neuronal — plugin propio del segundo cerebro.
+/* Why Graph (id: mapa-neuronal) — el grafo que explica por qué cada nota se conecta.
+ *
+ * v1.19 (16.09.2026): el nombre visible pasa a «Why Graph». El id, los nombres de archivo y
+ *   las clases CSS se quedan como están: cambiarlos costaría la ficha del directorio.
+ *
  *
  * v1.0 (15.09.2026): el mapa por capas dentro de Obsidian, en vivo y táctil.
  * v1.9 (15.09.2026): interfaz en inglés y español, según el idioma de Obsidian (getLanguage()); los
@@ -70,7 +74,7 @@ const EN = {
   'Acercar': 'Zoom in',
   'Cada línea es un enlace real. Toca una nota para leer por qué se conecta. Arriba, en «⋯ herramientas»: caminos, vacíos, vista radial y exportar. El botón ⌂ vuelve a encuadrar el mapa.':
     'Every line is a real link. Tap a note to read why it connects. Up top, under "⋯ tools": paths, gaps, radial view and export. The ⌂ button re-fits the map.',
-  'Mapa neuronal · {0} nodos · {1} enlaces': 'Neural map · {0} nodes · {1} links',
+  '{0} · {1} nodos · {2} enlaces': '{0} · {1} nodes · {2} links',
   ' · {0} con enlaces': ' · {0} with links',
   '{0} nodos': '{0} nodes',
   ' · +{0} ocultas': ' · +{0} hidden',
@@ -262,7 +266,7 @@ const EN = {
   'El resumen tiene {0} palabras; debe ser breve.': 'The summary is {0} words long; it should be brief.',
   'Una cita no aparece literal en la nota: se bloquea para no guardar algo no verificable.':
     'One quote does not appear literally in the note: blocked, so nothing unverifiable gets saved.',
-  'Aprobaciones desde el mapa neuronal': 'Approvals from the neural map',
+  'Aprobaciones desde {0}': 'Approvals from {0}',
   // ajustes nuevos
   'Propiedad de enlaces externos': 'External links property',
   'Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.':
@@ -327,6 +331,9 @@ const T = (clave, ...vals) => {
 
 const VISTA = 'mapa-neuronal';
 const MARCA = 'DBB Labs';
+// El nombre visible. El id del plugin sigue siendo «mapa-neuronal»: cambiarlo costaría la
+// ficha del directorio y las instalaciones. Los nombres de archivo también se dejan quietos.
+const NOMBRE = 'Why Graph';
 const PALETA = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635'];
 const AJUSTES_BASE = {
   capas: 'Entrada | notas con fecha\nNotas | el resto del vault',
@@ -570,7 +577,7 @@ class VistaMapa extends ItemView {
     this.N = []; this.E = [];
   }
   getViewType() { return VISTA; }
-  getDisplayText() { return 'Mapa neuronal'; }
+  getDisplayText() { return NOMBRE; }
   getIcon() { return 'brain-circuit'; }
 
   async onOpen() {
@@ -578,7 +585,7 @@ class VistaMapa extends ItemView {
     this.lienzo = raiz.createEl('canvas', { cls: 'mn-lienzo' });
     this.ctx = this.lienzo.getContext('2d');
     const barra = raiz.createDiv('mn-barra'); this.barra = barra;
-    this.marca = barra.createDiv({ cls: 'mn-marca', text: 'Mapa neuronal' });
+    this.marca = barra.createDiv({ cls: 'mn-marca', text: NOMBRE });
     const buscar = barra.createEl('input', { type: 'search', placeholder: T('buscar nota…'), cls: 'mn-buscar' });
     this.registerDomEvent(buscar, 'input', () => { this.filtro = buscar.value.trim().toLowerCase(); this.pedir(); });
     this.registerDomEvent(buscar, 'keydown', (e) => { if (e.key !== 'Enter' || !this.filtro) return; const n = this.N.find((x) => (x.titulo + ' ' + x.id).toLowerCase().includes(this.filtro)); if (n) { buscar.value = ''; this.filtro = ''; this.enfocar(n.id, true); } else new Notice(T('No hay notas con ese nombre')); });
@@ -695,7 +702,7 @@ class VistaMapa extends ItemView {
     this.D.nodos.forEach((n) => { if (n.capa === ultima && n.tema && n.propio && !this.hubs[n.tema]) this.hubs[n.tema] = n.id; });
     [...this.colapsados].forEach((t) => { if (!this.D.temas[t]) this.colapsados.delete(t); });
     const conEnlaces = this.D.nodos.filter((n) => n.enlaces && n.enlaces.length).length;
-    this.marca.setText(T('Mapa neuronal · {0} nodos · {1} enlaces', this.D.nodos.length, this.D.aristas.length) + (conEnlaces ? T(' · {0} con enlaces', conEnlaces) : ''));
+    this.marca.setText(T('{0} · {1} nodos · {2} enlaces', NOMBRE, this.D.nodos.length, this.D.aristas.length) + (conEnlaces ? T(' · {0} con enlaces', conEnlaces) : ''));
     if (this.solo && !this.D.temas[this.solo]) this.solo = null;
     if (this.vacios) this.listaVacios = this.calcularVacios();
     this.rehacer();
@@ -1480,7 +1487,7 @@ class AjustesMapa extends PluginSettingTab {
       .addButton((b) => b.setButtonText(T('Restablecer')).onClick(async () => { p.ajustes = Object.assign({}, AJUSTES_BASE); await p.guardar(); this.display(); }));
     c.createEl('p', { cls: 'setting-item-description', text: T('Restablecer no borra la llave guardada en este dispositivo.') });
     const pie = c.createEl('p', { cls: 'mn-pie' });
-    pie.appendText(`Mapa neuronal ${p.manifest?.version || ''} · Powered by`);
+    pie.appendText(`${NOMBRE} ${p.manifest?.version || ''} · Powered by`);
     // El nombre de la marca va en una constante: la regla de mayúsculas del linter revisa
     // los textos escritos a mano y no puede saber que «DBB Labs» es un nombre propio.
     const enlace = pie.createEl('a', { href: 'https://dontbuybuild.cl', attr: { 'aria-label': `Powered by ${MARCA}` } });
@@ -1634,7 +1641,7 @@ export default class MapaNeuronal extends Plugin {
     if (!this.app.vault.getFolderByPath(carpeta)) await this.app.vault.createFolder(carpeta);
     const registro = this.app.vault.getFileByPath(ruta);
     if (registro) await this.app.vault.append(registro, entrada);
-    else await this.app.vault.create(ruta, `---\ndate: ${hoyStr}\nsource: mapa-neuronal\n---\n\n# ${T('Aprobaciones desde el mapa neuronal')}\n` + entrada);
+    else await this.app.vault.create(ruta, `---\ndate: ${hoyStr}\nsource: mapa-neuronal\n---\n\n# ${T('Aprobaciones desde {0}', NOMBRE)}\n` + entrada);
   }
   // Escribe el motivo aprobado en la sección final de la nota de origen y deja registro de auditoría.
   async aprobar(fr, res) {

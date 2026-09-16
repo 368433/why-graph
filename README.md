@@ -1,4 +1,4 @@
-# Mapa neuronal
+# Why Graph
 
 *English · [Leer en español](README.es.md)*
 
@@ -7,7 +7,7 @@
 Obsidian's graph shows you *that* two notes are linked. It never tells you *why*. In a
 vault of a few hundred notes that is a hairball: pretty, and useless for thinking.
 
-Mapa neuronal lays your notes out in layers, left to right, the way information actually
+Why Graph lays your notes out in layers, left to right, the way information actually
 moves through a knowledge base: what comes in → what it is about → what you learned →
 what it all adds up to. Click any note and you get the sentence in which the link was
 written. Not a guess: the real line from your own note.
@@ -90,7 +90,7 @@ open it in a browser.
 
 ### From the community directory
 
-Community plugins → Browse → search "Mapa neuronal" → Install → Enable.
+Community plugins → Browse → search "Why Graph" → Install → Enable.
 *(Pending review at the time of writing — use one of the two ways below meanwhile.)*
 
 ### With BRAT — installs and keeps updating itself
