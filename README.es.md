@@ -15,6 +15,33 @@ escribió el enlace. No una suposición: la línea real de tu propia nota.
 
 ![El mapa: cuatro capas, de izquierda a derecha, en un vault de ejemplo](docs/imagenes/01-mapa.webp)
 
+## Qué espera de tu vault
+
+El mapa dibuja la estructura que ya tienes. **Si tus notas viven en una sola carpeta plana,
+sin temas y sin motivos escritos, vas a ver una columna y poco más** — no es un defecto: es
+el retrato honesto de un vault que todavía no tiene capas.
+
+Rinde cuando tu vault tiene, o va hacia:
+
+- **Carpetas que significan algo.** No `notas/`, sino algo como fuentes, proyectos y
+  personas, ideas, temas. El asistente del primer uso lee tus carpetas y propone una capa
+  para cada una; entre tres y cinco capas es lo que mejor funciona.
+- **Una propiedad que agrupa las notas** (`tema` por defecto, o el nombre que quieras). Es
+  lo que le da color a cada nota y permite colapsar temas. Es opcional: sin ella el mapa
+  funciona igual, en un solo color.
+- **La costumbre de decir por qué enlazas.** Cuando una nota lleva
+  `- [[otra-nota]] — el motivo`, el panel muestra tus palabras. Cuando no, muestra la frase
+  real donde aparece el enlace — y la IA puede proponer el motivo que falta, para que lo apruebes.
+
+Este plugin creció dentro de un vault armado con el patrón **LLM wiki** (el de Andrej
+Karpathy: fuentes crudas e inmutables por un lado, un wiki curado por el otro, y un contrato
+escrito entre los dos). No exige ese patrón y no impone ninguna carpeta propia — pero esa es
+la forma para la que fue diseñado, y cualquier vault con una estructura deliberada (PARA,
+Zettelkasten con MOCs, un jardín digital con centros temáticos) recibe el mismo beneficio.
+
+Si tu vault es plano hoy, el mapa sirve igual como diagnóstico: te muestra exactamente cuánto
+de tu pensamiento está en un montón sin diferenciar.
+
 ## Cómo funciona
 
 ![Arquitectura: del vault al mapa, y cómo se aprueba un motivo](docs/imagenes/arquitectura.png)

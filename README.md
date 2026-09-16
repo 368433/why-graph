@@ -14,6 +14,34 @@ written. Not a guess: the real line from your own note.
 
 ![The map: four layers, left to right, in a demo vault](docs/imagenes/01-mapa.webp)
 
+## What it expects from your vault
+
+The map draws the structure you already have. **If your notes live in one flat folder with
+no topics and no reasons written down, you will see one column and little else** — not a
+bug, just an honest picture of a vault with no layers yet.
+
+It pays off when your vault has, or is moving towards:
+
+- **Folders that mean something.** Not `notes/`, but something like sources, projects and
+  people, ideas, topics. The first-run wizard reads your folders and proposes a layer for
+  each; three to five layers is the sweet spot.
+- **A property that groups notes** (`tema` by default, any name you like). That is what
+  gives each note its colour and makes topics collapsible. Optional: without it the map
+  still works, in one colour.
+- **The habit of saying why you link.** When a note carries
+  `- [[other-note]] — the reason`, the panel shows your words. When it does not, the panel
+  falls back to the actual sentence where the link appears — and the AI can propose the
+  missing reason for you to approve.
+
+This plugin grew inside a vault built on the **LLM wiki** pattern (Andrej Karpathy's:
+immutable raw sources on one side, a curated wiki on the other, and a written contract
+between them). It does not require that pattern, and it names no folder of its own — but
+that is the shape it was designed against, and any vault with a deliberate structure
+(PARA, Zettelkasten with MOCs, a digital garden with topic hubs) gets the same benefit.
+
+If your vault is flat today, the map is still useful as a diagnosis: it shows you exactly
+how much of your thinking is sitting in one undifferentiated pile.
+
 ## How it works
 
 ![Architecture: from the vault to the map, and how a reason gets approved](docs/imagenes/arquitectura.png)
