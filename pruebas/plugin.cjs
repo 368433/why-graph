@@ -6,7 +6,7 @@
 const { cargarPlugin, vaultSimulado, pruebas, el } = require('./simulado.cjs');
 
 const { Plugin, interno, filas: filasUI } = cargarPlugin(process.argv[2]);
-const { construir, VistaMapa, AjustesMapa, AJUSTES_BASE, enlacesDe, detectarCarpetas, PROVEEDORES, CLAVE_IA } = interno;
+const { construir, VistaMapa, AjustesMapa, AJUSTES_BASE, enlacesDe, detectarCarpetas, PROVEEDORES, CLAVE_IA, resumir, limpiarFrase } = interno;
 const p = pruebas('plugin');
 
 // ── El vault de prueba: 3 capas, 2 temas, un enlace con motivo y otro sin él ──────────────────
@@ -257,6 +257,33 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
     p.cierto(`con ${prov} se dibuja el campo Model`, filasUI.includes('Model'));
     p.cierto(`con ${prov} se dibuja el botón de probar`, filasUI.includes('Test the connection'));
     p.cierto(`con ${prov} se dibujan las 21 filas`, filasUI.length >= 21);
+  }
+
+  // ── 12. Quitar formato sin romper nombres ────────────────────────────────────────────────────
+  // Antes se borraba todo «_» y «*»: en un mapa de código «audit_logs» se leía «auditlogs».
+  p.igual('el resumen conserva el guion bajo de un nombre', resumir('La tabla user_id guarda el dueño.'), 'La tabla user_id guarda el dueño.');
+  p.igual('el resumen quita la negrita', resumir('Un **cambio** grande.'), 'Un cambio grande.');
+  p.igual('el resumen quita la cursiva con guion bajo', resumir('Algo _importante_ aquí.'), 'Algo importante aquí.');
+  p.igual('el resumen quita las comillas de código y respeta lo de adentro', resumir('Llama a `crear_pago` primero.'), 'Llama a crear_pago primero.');
+  p.igual('un asterisco suelto no se come el texto', resumir('Cuesta 2 * 3 pesos.'), 'Cuesta 2 * 3 pesos.');
+  p.igual('la frase de un enlace conserva el guion bajo', limpiarFrase('- usa [[tabla]] con la columna local_id'), 'usa tabla con la columna local_id');
+
+  // ── 13. «Mostrar todo en mapas chicos» dibuja más, y está apagado por defecto ─────────────
+  p.igual('el ajuste viene apagado: nada cambia para quien ya usa el plugin', AJUSTES_BASE.mostrarTodo, false);
+  {
+    const vistaCon = async (rotular) => {
+      const aj = Object.assign({}, AJUSTES, { mostrarTodo: rotular, animacion: false });
+      const vv = new VistaMapa({}, { ajustes: aj, tieneIA: () => false, app });
+      vv.app = app; vv.contentEl = el();
+      vv.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
+      vv.ctx = vv.lienzo.getContext(); vv.marca = el(); vv.chips = el(); vv.estado = el(); vv.panel = el(); vv.guia = el();
+      vv.D = await construir(app, aj); vv.plugin.construir = null;
+      await vv.recargar();
+      vv.ctx = contexto2D(); vv.dibujar();
+      return vv.ctx.llamadas;
+    };
+    const sin = await vistaCon(false), con = await vistaCon(true);
+    p.cierto(`con el ajuste encendido se dibujan más nombres y líneas (${sin} → ${con} llamadas)`, con > sin);
   }
 
   process.exit(p.cerrar() ? 1 : 0);

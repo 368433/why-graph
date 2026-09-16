@@ -134,7 +134,7 @@ function cargarPlugin(rutaMain) {
   global.document = global.document || { visibilityState: 'visible' };
   global.getComputedStyle = global.getComputedStyle || (() => ({ getPropertyValue: () => '' }));
   global.ResizeObserver = global.ResizeObserver || class { observe() {} disconnect() {} };
-  new Function('require', 'module', 'exports', texto + '\nmodule.exports.__t = { construir, VistaMapa, AsistenteCapas, AjustesMapa, AJUSTES_BASE, PROVEEDORES, CAPAS_ESTANDAR, EN, T, enlacesDe, detectarCarpetas, leerAjustes, CLAVE_IA };')(
+  new Function('require', 'module', 'exports', texto + '\nmodule.exports.__t = { construir, VistaMapa, AsistenteCapas, AjustesMapa, AJUSTES_BASE, PROVEEDORES, CAPAS_ESTANDAR, EN, T, enlacesDe, detectarCarpetas, leerAjustes, CLAVE_IA, resumir, limpiarFrase };')(
     (n) => (n === 'obsidian' ? sim.modulo : require(n)), m, m.exports);
   return { Plugin: m.exports.default || m.exports, interno: m.exports.__t, avisos: sim.avisos, filas: sim.filas };
 }

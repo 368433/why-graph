@@ -226,6 +226,9 @@ const EN = {
   'Dirección del servidor local': 'Local server address',
   'Compatible con OpenAI. Ollama usa http://localhost:11434/v1/chat/completions.': 'OpenAI-compatible. Ollama uses http://localhost:11434/v1/chat/completions.',
   'Modelo': 'Model',
+  'Mostrar todo en mapas chicos': 'Show everything on small maps',
+  'Muestra el nombre de cada nota que quepa y todas las líneas, también entre columnas lejanas. Pensado para mapas de pocas decenas de notas; en uno grande lo vuelve ilegible.':
+    'Shows every note name that fits and every link, including between distant columns. Meant for maps of a few dozen notes; on a large one it becomes unreadable.',
   'nombre del modelo': 'model name',
   'La calidad de los motivos se midió con Claude Opus 5: 97,7 % correctos y 0 inventados sobre 50 conexiones. Con otros modelos los candados siguen puestos (citas verificadas y tu aprobación), pero la precisión no está medida.':
     'Reason quality was measured with Claude Opus 5: 97.7% correct and 0 invented over 50 connections. With other models the locks still apply (verified quotes and your approval), but the accuracy is unmeasured.',
@@ -352,6 +355,7 @@ const AJUSTES_BASE = {
   seguirActiva: true,
   carpetaExport: 'Mapa neuronal',
   animacion: true,
+  mostrarTodo: false,     // mapas chicos: todos los nombres que quepan y todas las líneas
   proveedorIA: 'claude',
   modeloIA: 'claude-opus-5',
   urlLocal: 'http://localhost:11434/v1/chat/completions',
@@ -411,8 +415,18 @@ function leerAjustes(s) {
   return { capas, carpetas, temas, excluir };
 }
 
+// Quita el formato Markdown sin romper los nombres: «**negrita**», «_cursiva_» y «`código`» pierden
+// sus marcas, pero «user_id» o «tabla_2» conservan su guion bajo. Antes se borraba todo «_» y «*», y
+// en un mapa de código «audit_logs» se leía «auditlogs».
+const sinFormato = (t) => String(t)
+  .replace(/`([^`]*)`/g, '$1')
+  .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '$2')
+  .replace(/(^|[^\w*])[*_](?=\S)([^*_\n]*?\S)[*_](?!\w)/g, '$1$2')
+  .replace(/`/g, '');
+
 function limpiarFrase(l) {
-  const t = l.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/^\s*(?:[-*>|]\s*)+/, '').replace(/[*_`]/g, '').replace(/\|/g, ' · ').replace(/\s+/g, ' ').trim();
+  const sinEnlaces = l.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/^\s*(?:[-*>|]\s*)+/, '');
+  const t = sinFormato(sinEnlaces).replace(/\|/g, ' · ').replace(/\s+/g, ' ').trim();
   return t.length > 220 ? t.slice(0, 219) + '…' : t;
 }
 
@@ -422,7 +436,7 @@ function resumir(texto) {
   const desde = i >= 0 ? cuerpo.slice(i).split('\n').slice(1).join('\n') : cuerpo.replace(/^#\s.*$/m, '');
   const parrafo = desde.split(/\n\s*\n/).map((x) => x.trim()).find((x) => x && !x.startsWith('#') && !x.startsWith('>') && !x.startsWith('|'));
   if (!parrafo) return '';
-  const limpio = parrafo.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a).replace(/[*_`]/g, '').replace(/\s+/g, ' ');
+  const limpio = sinFormato(parrafo.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)).replace(/\s+/g, ' ');
   return limpio.length > 260 ? limpio.slice(0, 259) + '…' : limpio;
 }
 
@@ -1069,7 +1083,11 @@ class VistaMapa extends ItemView {
         curva(A, B, toca ? 0.95 : cerca ? 0.55 : da === db ? 0.05 : 0.18, toca || cerca ? 1.3 + grueso : 0.7 + grueso, tono);
         continue;
       }
-      const contiguas = Math.abs(A.capa - B.capa) === 1, tenue = this.reciente && !(this.activo(A) && this.activo(B));
+      // «Mostrar todo en mapas chicos»: también las líneas entre columnas lejanas y dentro de una misma
+      // columna, con la fuerza de las vecinas. En un mapa de 5.000 enlaces esconderlas es lo que lo
+      // deja leer; en uno de 90 esconde justo lo que se vino a ver: qué depende de qué.
+      const contiguas = Math.abs(A.capa - B.capa) === 1 || !!this.plugin.ajustes.mostrarTodo;
+      const tenue = this.reciente && !(this.activo(A) && this.activo(B));
       if (nivel) {
         const na = nivel[e.a], nb = nivel[e.b];
         if (na === undefined || nb === undefined) { if (contiguas || e.superE) curva(A, B, 0.025, 0.6 + grueso, tono); continue; }
@@ -1111,7 +1129,10 @@ class VistaMapa extends ItemView {
       if (n.enlaces && n.enlaces.length) { ctx.strokeStyle = rgba('#FFFFFF', activo ? 0.75 : 0.2); ctx.lineWidth = 1 / vista.k; ctx.beginPath(); ctx.arc(n.x, n.y, r + 2.5 / vista.k, 0, 6.283); ctx.stroke(); }
       if (this.salud && this.problemas(n).length) { ctx.strokeStyle = '#FF6B6B'; ctx.lineWidth = 1.6 / vista.k; ctx.setLineDash([3 / vista.k, 2 / vista.k]); ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / vista.k, 0, 6.283); ctx.stroke(); ctx.setLineDash([]); }
       if (n.id === centro || (this.eligiendo && this.eligiendo.desde === n.id)) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / vista.k; ctx.beginPath(); ctx.arc(n.x, n.y, r + 6 / vista.k, 0, 6.283); ctx.stroke(); }
-      if (n.capa === ultima || n.agrupados || enSug || (enCamino && enCamino.has(n.id)) || (nivel && nivel[n.id] <= 1) || (radial && this.dist[n.id] <= 1) || n.id === sobreRadial || vista.k > 2.2) rotulos.push(n);
+      // Con «Mostrar todo» se proponen todos los nombres; el control de choques de abajo deja solo los
+      // que caben. En un mapa de 50 nodos los nombres SON la explicación; en uno de 5.000 no caben.
+      const todos = this.plugin.ajustes.mostrarTodo && !radial;
+      if (todos || n.capa === ultima || n.agrupados || enSug || (enCamino && enCamino.has(n.id)) || (nivel && nivel[n.id] <= 1) || (radial && this.dist[n.id] <= 1) || n.id === sobreRadial || vista.k > 2.2) rotulos.push(n);
     }
     // Las importantes se colocan primero y ninguna se dibuja encima de otra: se compara la caja
     // real de cada rótulo, no una distancia aproximada. Antes, con el panel abierto, las
@@ -1469,6 +1490,8 @@ class AjustesMapa extends PluginSettingTab {
       .addSlider((sl) => sl.setLimits(30, 600, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
     new Setting(c).setName(T('Seguir la nota activa')).setDesc(T('Al abrir una nota, el mapa la enfoca.'))
       .addToggle((t) => t.setValue(p.ajustes.seguirActiva).onChange(async (v) => { p.ajustes.seguirActiva = v; await p.guardar(); }));
+    new Setting(c).setName(T('Mostrar todo en mapas chicos')).setDesc(T('Muestra el nombre de cada nota que quepa y todas las líneas, también entre columnas lejanas. Pensado para mapas de pocas decenas de notas; en uno grande lo vuelve ilegible.'))
+      .addToggle((t) => t.setValue(!!p.ajustes.mostrarTodo).onChange(async (v) => { p.ajustes.mostrarTodo = v; await p.guardar(); }));
     new Setting(c).setName(T('Animación')).setDesc(T('Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.'))
       .addToggle((t) => t.setValue(p.ajustes.animacion).onChange(async (v) => { p.ajustes.animacion = v; await p.guardar(); }));
     new Setting(c).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));

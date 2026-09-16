@@ -29,9 +29,19 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSy
 import { join, resolve, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const [repoArg, salidaArg] = process.argv.slice(2);
-if (!repoArg || !salidaArg) {
-  console.error('Uso: node herramientas/mapa-de-repo.mjs <repo> <vault-de-salida>');
+// --nivel codigo (por defecto): un nodo por archivo — el nivel 4 del modelo C4.
+// --nivel funciones: un nodo por función del producto — el nivel 3, el que entiende un cliente.
+const args = process.argv.slice(2);
+let NIVEL = 'codigo';
+const iNivel = args.findIndex((a) => a.startsWith('--nivel'));
+if (iNivel >= 0) {
+  const a = args[iNivel], conIgual = a.includes('=');
+  NIVEL = conIgual ? a.split('=')[1] : args[iNivel + 1];
+  args.splice(iNivel, conIgual ? 1 : 2);
+}
+const [repoArg, salidaArg] = args;
+if (!repoArg || !salidaArg || !['codigo', 'funciones'].includes(NIVEL)) {
+  console.error('Uso: node herramientas/mapa-de-repo.mjs <repo> <vault-de-salida> [--nivel codigo|funciones]');
   process.exit(1);
 }
 const REPO = resolve(repoArg), SALIDA = resolve(salidaArg);
@@ -109,7 +119,7 @@ let dinamicas = 0;
 for (const abs of archivos) {
   const texto = readFileSync(abs, 'utf8');
   const sf = ts.createSourceFile(abs, texto, ts.ScriptTarget.Latest, true, abs.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-  const m = { ...describir(abs), ruta: relative(REPO, abs), exports: [], resumen: '', enlaces: new Map(), datos: new Map() };
+  const m = { ...describir(abs), ruta: relative(REPO, abs), exports: [], resumen: '', enlaces: new Map(), datos: new Map(), env: new Set(), dominios: new Set() };
 
   const comentario = ts.getLeadingCommentRanges(texto, sf.statements[0]?.getFullStart() ?? 0)?.[0];
   if (comentario) {
@@ -162,6 +172,14 @@ for (const abs of archivos) {
         }
       }
     }
+    // Los servicios externos se reconocen por el NOMBRE de sus variables de entorno (FLOW_API_KEY)
+    // y por los dominios que el código menciona. El valor de una variable nunca se lee: no está en
+    // el código, y aunque estuviera no es asunto del mapa.
+    if (ts.isPropertyAccessExpression(n) && n.expression.getText(sf) === 'process.env') m.env.add(n.name.text);
+    else if (ts.isElementAccessExpression(n) && n.expression.getText(sf) === 'process.env' && ts.isStringLiteralLike(n.argumentExpression)) m.env.add(n.argumentExpression.text);
+    if (n.kind === ts.SyntaxKind.StringLiteral || n.kind === ts.SyntaxKind.NoSubstitutionTemplateLiteral || n.kind === ts.SyntaxKind.TemplateHead) {
+      for (const x of String(n.text).matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) m.dominios.add(x[1].toLowerCase());
+    }
     // Lo que el archivo ofrece hacia afuera, para el panel.
     if (n.parent === sf && ts.canHaveModifiers?.(n) && ts.getModifiers(n)?.some((x) => x.kind === ts.SyntaxKind.ExportKeyword)) {
       const esDefault = ts.getModifiers(n).some((x) => x.kind === ts.SyntaxKind.DefaultKeyword);
@@ -193,18 +211,52 @@ for (const d of datos.values()) {
   d.tema = masFrecuente(quien(d.escritores)) || masFrecuente(quien(d.lectores)) || 'compartido';
 }
 
-// ── 5. Escribir el vault ────────────────────────────────────────────────────────────────────────
+// ── Utilidades de los dos niveles ───────────────────────────────────────────────────────────────
 // Solo se borran las carpetas que este guion genera: nunca el vault entero, que puede tener la
-// configuración de Obsidian que el usuario ya ajustó.
-mkdirSync(SALIDA, { recursive: true });
-// Las carpetas «L<n> nombre» son todas de este guion, también las de corridas anteriores con otro
-// orden de capas: se borran para que no queden notas viejas dibujándose en la columna equivocada.
-for (const c of readdirSync(SALIDA)) if (/^L\d /.test(c)) rmSync(join(SALIDA, c), { recursive: true, force: true });
-for (const c of CAPAS) mkdirSync(join(SALIDA, c), { recursive: true });
-
+// configuración de Obsidian que el usuario ya ajustó. Las carpetas «L<n> nombre» son todas de este
+// guion, también las de corridas anteriores con otro orden: se borran para que no queden notas
+// viejas dibujándose en la columna equivocada.
+function prepararCarpetas(capas) {
+  mkdirSync(SALIDA, { recursive: true });
+  for (const c of readdirSync(SALIDA)) if (/^L\d /.test(c)) rmSync(join(SALIDA, c), { recursive: true, force: true });
+  for (const c of capas) mkdirSync(join(SALIDA, c), { recursive: true });
+}
 const yaml = (s) => JSON.stringify(String(s));   // una cadena JSON es YAML válido y escapa todo
-const nombreDe = (abs) => modulos.get(abs).nombre;
-let enlaces = 0, omitidos = 0;
+const COLORES = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635', '#E879F9', '#60A5FA'];
+const temasBase = () => [
+  ...funciones.map((f, i) => `${f} = ${f} = ${COLORES[i % COLORES.length]}`),
+  'compartido = compartido = #8A93B8',
+  'sitio = sitio = #E6EAFF',
+];
+
+// El plugin, instalado y configurado para el mapa. La configuración que el usuario haya cambiado a
+// mano se conserva; solo se pisan las capas, las carpetas y los temas, que son del mapa.
+function instalarObsidian(capas, capasTexto, temas, mostrarTodo) {
+  const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const destino = join(SALIDA, '.obsidian', 'plugins', 'mapa-neuronal');
+  mkdirSync(destino, { recursive: true });
+  for (const f of ['main.js', 'manifest.json', 'styles.css']) {
+    if (!existsSync(join(PLUGIN, f))) { console.error(`Falta ${f}: corre npm run build en el repo del plugin.`); process.exit(1); }
+    copyFileSync(join(PLUGIN, f), join(destino, f));
+  }
+  const previos = existsSync(join(destino, 'data.json')) ? JSON.parse(readFileSync(join(destino, 'data.json'), 'utf8')) : {};
+  for (const vieja of ['rotularTodo', 'agruparMesesDesde']) delete previos[vieja];   // ajustes que ya no existen
+  writeFileSync(join(destino, 'data.json'), JSON.stringify(Object.assign(previos, {
+    capas: capasTexto,
+    carpetas: capas.map((c, i) => `${c} = ${i}`).join('\n'),
+    propiedadTema: 'tema',
+    temas: temas.join('\n'),
+    fuentes: false,
+    seccionMotivos: 'Conexiones',
+    propiedadEnlaces: '',
+    propiedadFecha: '',
+    configurado: true,
+    // El mapa de funciones es chico (unos 50 nodos): ahí los nombres y las líneas entre columnas
+    // lejanas SON la explicación. El de código tiene cientos: con todo encendido no se lee.
+    mostrarTodo: !!mostrarTodo,
+  }), null, 2) + '\n');
+  writeFileSync(join(SALIDA, '.obsidian', 'community-plugins.json'), JSON.stringify(['mapa-neuronal'], null, 2) + '\n');
+}
 
 // Fontanería: piezas que casi todo usa y que no explican nada de la arquitectura. Un ícono que
 // importan 48 archivos dibuja 48 líneas y no dice cómo funciona el sistema; los clientes de Supabase
@@ -217,6 +269,191 @@ const esFontaneria = (abs) => {
   const m = modulos.get(abs);
   return !!m && m.datos.size === 0 && FONTANERIA.some((r) => r.test(m.ruta));
 };
+
+// ── Nivel 3 (C4 · componentes): un nodo por función, no por archivo ────────────────────────────
+// El mapa de archivos muestra la FORMA del código; no cuenta qué hace el sistema. Este cuenta eso:
+// quién entra, qué funciones hay, qué datos tocan y con quién hablan afuera. Unos 50 nodos en vez
+// de 190, y cada relación agrupa las de sus archivos con un ejemplo.
+//
+// Columnas: Entradas → Funciones → Datos → Servicios externos. Los servicios van al final por dos
+// razones: en C4 los sistemas de afuera se dibujan en el borde, y Why Graph rotula la última
+// columna con el nombre del tema — que aquí es el nombre del servicio.
+if (NIVEL === 'funciones') {
+  const CAPAS3 = ['L0 Entradas', 'L1 Funciones', 'L2 Datos', 'L3 Servicios externos'];
+  prepararCarpetas(CAPAS3);
+
+  // Next.js agrupa las rutas por quién entra: (admin), (auth), (main). Se usan esos grupos, y la
+  // API se separa por dominio porque ahí viven los webhooks (api/pagos, api/auth…).
+  const areaDe = (m) => {
+    if (m.nombre === 'middleware') return 'middleware';
+    const partes = relative(join(SRC, 'app'), join(REPO, m.ruta)).replace(/\.(tsx?)$/, '').split('/');
+    if (partes.length === 1) return '/';
+    if (/^\(.*\)$/.test(partes[0])) return partes[0];
+    if (partes[0] === 'api') return partes.length > 2 ? `api/${partes[1]}` : 'api';
+    return partes[0];
+  };
+  const idArea = (a) => 'entrada.' + (a === '/' ? 'raiz' : limpio(a.replace(/\//g, '.')));
+  const idFuncion = (f) => 'funcion.' + limpio(f);
+  const componenteDe = (abs) => {
+    const m = modulos.get(abs);
+    if (!m || esFontaneria(abs) || m.capa === RUTAS) return null;   // una ruta es una entrada, no un componente
+    return m.funcion || 'compartido';
+  };
+
+  // Servicios externos por el prefijo del nombre de la variable: FLOW_API_KEY → flow.
+  const SERVICIOS = {
+    flow: 'Flow · pagos', transbank: 'Transbank · pagos', khipu: 'Khipu · pagos', mercadopago: 'Mercado Pago · pagos', stripe: 'Stripe · pagos',
+    twilio: 'Twilio · SMS', whatsapp: 'WhatsApp', resend: 'Resend · correo', sendgrid: 'SendGrid · correo', postmark: 'Postmark · correo',
+    mailgun: 'Mailgun · correo', openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', mapbox: 'Mapbox · mapas', google: 'Google',
+    sii: 'SII', aws: 'AWS', sentry: 'Sentry · errores', posthog: 'PostHog · analítica', slack: 'Slack', cloudinary: 'Cloudinary · imágenes',
+    upstash: 'Upstash', redis: 'Redis',
+  };
+  // Prefijos que no son un servicio de afuera: el framework, la plataforma y la propia base.
+  const NO_SERVICIO = new Set(['next', 'node', 'vercel', 'supabase', 'site', 'app', 'base', 'port', 'public', 'database', 'ci', 'tz', 'log', 'debug', 'env', 'url', 'api', 'host']);
+  const servicioDe = (variable) => {
+    const p = variable.replace(/^NEXT_PUBLIC_/, '').split('_')[0].toLowerCase();
+    return p && !NO_SERVICIO.has(p) ? p : null;
+  };
+
+  const areas = new Map();       // área → { titulos: [], funciones: [] }
+  const usosServicio = new Map(); // servicio → { variables: Set, dominios: Set, quienes: Set }
+  const aristas = new Map();     // origen → Map(destino → { nombres, fuentes, ops, variables })
+  const unir = (o, d, extra) => {
+    if (o === d) return;
+    if (!aristas.has(o)) aristas.set(o, new Map());
+    const mo = aristas.get(o);
+    if (!mo.has(d)) mo.set(d, { nombres: new Set(), fuentes: new Set(), ops: new Set(), variables: new Set() });
+    const e = mo.get(d);
+    for (const k of ['nombres', 'fuentes', 'ops', 'variables']) for (const x of extra[k] || []) e[k].add(x);
+  };
+
+  for (const [abs, m] of modulos) {
+    if (esFontaneria(abs)) continue;
+    const esEntrada = m.capa === RUTAS;
+    let origen;
+    if (esEntrada) {
+      const a = areaDe(m);
+      if (!areas.has(a)) areas.set(a, { titulos: [], funciones: [] });
+      areas.get(a).titulos.push(m.titulo);
+      origen = idArea(a);
+    } else origen = idFuncion(m.funcion || 'compartido');
+    const fuente = esEntrada ? m.titulo : m.ruta;
+
+    for (const [destino, k] of m.enlaces) {
+      const c = componenteDe(destino);
+      if (!c) continue;
+      if (esEntrada && c !== 'compartido') areas.get(areaDe(m)).funciones.push(c);
+      unir(origen, idFuncion(c), { nombres: [...k.nombres], fuentes: [fuente] });
+    }
+    for (const [id, ops] of m.datos) unir(origen, id, { ops: [...ops], fuentes: [fuente] });
+    for (const v of m.env) {
+      const sv = servicioDe(v);
+      if (!sv) continue;
+      if (!usosServicio.has(sv)) usosServicio.set(sv, { variables: new Set(), dominios: new Set(), quienes: new Set() });
+      const u = usosServicio.get(sv);
+      u.variables.add(v); u.quienes.add(origen);
+      unir(origen, 'servicio.' + limpio(sv), { variables: [v], fuentes: [fuente] });
+    }
+  }
+  // Un dominio cuenta como prueba de un servicio solo si lleva su nombre (www.flow.cl → flow). Así
+  // un enlace a instagram.com en el pie de página no se confunde con una integración.
+  for (const m of modulos.values()) for (const dom of m.dominios) for (const [sv, u] of usosServicio) if (dom.includes(sv)) u.dominios.add(dom);
+
+  const cuantos = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const motivo = (d, e) => {
+    const en = ` · ${cuantos(e.fuentes.size, 'archivo', 'archivos')}`;
+    if (d.startsWith('tabla.') || d.startsWith('bucket.')) {
+      const ops = [...e.ops], escr = ops.filter((o) => ESCRITURA.has(o) || /upload|remove|move|copy/.test(o));
+      return (escr.length ? `escribe (${escr.join(', ')})` : ops.some((o) => LECTURA.has(o)) ? 'lee' : 'usa') + en;
+    }
+    if (d.startsWith('servicio.')) return `usa ${[...e.variables].sort().join(', ')}` + en;
+    const nombres = [...e.nombres];
+    return (nombres.length ? `importa ${nombres.slice(0, 5).join(', ')}${nombres.length > 5 ? ` y ${nombres.length - 5} más` : ''}` : 'importa') + en;
+  };
+  const conexiones = (origen) => [...(aristas.get(origen) || new Map())].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([d, e]) => `- [[${d}]] — ${motivo(d, e)}`);
+  const escribir = (capa, id, titulo, tema, cuerpo, lineas) => writeFileSync(join(SALIDA, CAPAS3[capa], id + '.md'), [
+    '---', `title: ${yaml(titulo)}`, `tema: ${yaml(tema)}`, '---', '', ...cuerpo, '', '## Conexiones', '',
+    ...(lineas.length ? lineas : ['_Sin conexiones._']), '',
+  ].join('\n'));
+
+  // Entradas
+  for (const [a, info] of areas) {
+    const tema = masFrecuente(info.funciones) || 'sitio';
+    const ejemplos = [...new Set(info.titulos.map((t) => t.split(' · ')[0]))].sort();
+    escribir(0, idArea(a), a === '/' ? '/ (raíz)' : a, tema,
+      [`Entrada con ${cuantos(info.titulos.length, 'archivo de ruta', 'archivos de ruta')}. ${tema !== 'sitio' ? `Usa sobre todo la función «${tema}».` : 'No usa ninguna función del producto.'}`,
+        '', `Rutas: ${ejemplos.slice(0, 12).map((x) => `\`${x}\``).join(', ')}${ejemplos.length > 12 ? '…' : ''}`],
+      conexiones(idArea(a)));
+  }
+  // Funciones (y lo compartido, si quedó algo después de sacar la fontanería)
+  const conCompartido = [...modulos.entries()].some(([k, m]) => m.capa === COMPARTIDO && !esFontaneria(k));
+  for (const f of [...funciones, ...(conCompartido ? ['compartido'] : [])]) {
+    const propios = [...modulos.entries()].filter(([k, m]) => (f === 'compartido' ? m.capa === COMPARTIDO : m.funcion === f) && !esFontaneria(k));
+    let resumen = '';
+    const leeme = join(SRC, 'features', f, 'README.md');
+    if (f !== 'compartido' && existsSync(leeme)) {
+      const parrafo = readFileSync(leeme, 'utf8').split(/\n\s*\n/).map((x) => x.trim()).find((x) => x && !x.startsWith('#'));
+      if (parrafo && !PARECE_SECRETO.test(parrafo)) resumen = parrafo.replace(/\s+/g, ' ').slice(0, 280);
+    }
+    const quienEntra = [...areas.keys()].filter((a) => aristas.get(idArea(a))?.has(idFuncion(f)));
+    if (!resumen) resumen = f === 'compartido'
+      ? `La lógica que usan varias funciones: ${cuantos(propios.length, 'módulo', 'módulos')}.`
+      : `La función «${f}»: ${cuantos(propios.length, 'módulo', 'módulos')}, y se entra por ${quienEntra.length ? quienEntra.join(', ') : 'ninguna ruta propia'}.`;
+    escribir(1, idFuncion(f), f, f,
+      [resumen, '', `**Archivos:** ${propios.map(([, m]) => `\`${m.ruta}\``).sort().join(', ') || '—'}`],
+      conexiones(idFuncion(f)));
+  }
+  // Datos. El nombre va en el título y no en el primer párrafo: el resumen del plugin borra los «_».
+  const legible = new Map([...areas.keys()].map((a) => [idArea(a), a === '/' ? '/ (raíz)' : a]));
+  for (const f of [...funciones, 'compartido']) legible.set(idFuncion(f), f);
+  const nombreDeId = (id) => legible.get(id) || id;
+  const quienesTocan = (id) => [...aristas].filter(([, mo]) => mo.has(id)).map(([o]) => nombreDeId(o));
+  for (const [id, d] of datos) {
+    const quienes = quienesTocan(id);
+    escribir(2, id, d.nombre, d.tema,
+      [`${d.tipo === 'bucket' ? 'Bucket de Supabase Storage' : 'Tabla de Supabase'} de la función «${d.tema}». La tocan ${cuantos(quienes.length, 'componente', 'componentes')}: ${quienes.join(', ')}.`],
+      []);
+  }
+  // Servicios externos
+  const temasServicio = [];
+  if (!usosServicio.size) {
+    escribir(3, 'servicio.ninguno', 'sin servicios externos', 'sin-servicios', ['No se detectó ninguna integración externa por variables de entorno.'], []);
+    temasServicio.push('sin-servicios = sin servicios externos = #8A93B8');
+  }
+  for (const [sv, u] of usosServicio) {
+    const nombre = SERVICIOS[sv] || sv.charAt(0).toUpperCase() + sv.slice(1);
+    const quienes = [...u.quienes].map(nombreDeId);
+    escribir(3, 'servicio.' + limpio(sv), nombre, 'servicio-' + sv,
+      [`Servicio externo que usa${quienes.length === 1 ? '' : 'n'} ${quienes.join(', ')}.`,
+        '', `Detectado por el nombre de las variables ${[...u.variables].sort().map((v) => `\`${v}\``).join(', ')}` +
+          (u.dominios.size ? ` y por ${u.dominios.size === 1 ? 'el dominio' : 'los dominios'} ${[...u.dominios].sort().map((x) => `\`${x}\``).join(', ')}` : '') +
+          '. El valor de una variable nunca se lee.'],
+      []);
+    temasServicio.push(`servicio-${sv} = ${nombre} = #C9D1FF`);
+  }
+
+  instalarObsidian(CAPAS3,
+    'Entradas | quién entra y por dónde\nFunciones | lo que hace el producto\nDatos | tablas y buckets de Supabase\nServicios externos | con quién habla afuera',
+    [...temasBase(), ...temasServicio], true);
+
+  const totalAristas = [...aristas.values()].reduce((n, mo) => n + mo.size, 0);
+  console.log(`Mapa de funciones de ${relative(resolve(REPO, '..'), REPO)} — nivel 3 del modelo C4`);
+  console.log(`  ${archivos.length} archivos leídos · sin IA · sin red`);
+  console.log(`  L0 Entradas           ${areas.size} nodos: ${[...areas.keys()].sort().join(', ')}`);
+  console.log(`  L1 Funciones          ${funciones.length + (conCompartido ? 1 : 0)} nodos`);
+  console.log(`  L2 Datos              ${datos.size} nodos`);
+  console.log(`  L3 Servicios externos ${usosServicio.size} nodos: ${[...usosServicio.keys()].map((sv) => SERVICIOS[sv] || sv).join(', ') || 'ninguno'}`);
+  console.log(`  ${totalAristas} relaciones, cada una con su motivo y cuántos archivos la sostienen`);
+  console.log(`  → ${SALIDA}`);
+  process.exit(0);
+}
+
+
+// ── 5. Escribir el vault (nivel código) ─────────────────────────────────────────────────────────
+prepararCarpetas(CAPAS);
+const nombreDe = (abs) => modulos.get(abs).nombre;
+let enlaces = 0, omitidos = 0;
 
 for (const [abs, m] of modulos) {
   if (esFontaneria(abs)) continue;
@@ -307,34 +544,10 @@ for (const f of funciones) {
   ].join('\n'));
 }
 
-// ── 6. Obsidian: el plugin instalado y configurado para este mapa ───────────────────────────────
-const AQUI = dirname(fileURLToPath(import.meta.url));
-const PLUGIN = join(AQUI, '..');
-const destinoPlugin = join(SALIDA, '.obsidian', 'plugins', 'mapa-neuronal');
-mkdirSync(destinoPlugin, { recursive: true });
-for (const f of ['main.js', 'manifest.json', 'styles.css']) {
-  if (!existsSync(join(PLUGIN, f))) { console.error(`Falta ${f}: corre npm run build en el repo del plugin.`); process.exit(1); }
-  copyFileSync(join(PLUGIN, f), join(destinoPlugin, f));
-}
-const COLORES = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635', '#E879F9', '#60A5FA'];
-const temas = [
-  ...funciones.map((f, i) => `${f} = ${f} = ${COLORES[i % COLORES.length]}`),
-  'compartido = compartido = #8A93B8',
-  'sitio = sitio = #E6EAFF',
-].join('\n');
-const ajustesPrevios = existsSync(join(destinoPlugin, 'data.json')) ? JSON.parse(readFileSync(join(destinoPlugin, 'data.json'), 'utf8')) : {};
-writeFileSync(join(destinoPlugin, 'data.json'), JSON.stringify(Object.assign(ajustesPrevios, {
-  capas: 'Compartido | piezas que usan varias funciones\nRutas | lo que el usuario visita\nMódulos | el código de cada función\nDatos | tablas y buckets de Supabase\nFunciones | una síntesis por función',
-  carpetas: CAPAS.map((c, i) => `${c} = ${i}`).join('\n'),
-  propiedadTema: 'tema',
-  temas,
-  fuentes: false,
-  seccionMotivos: 'Conexiones',
-  propiedadEnlaces: '',
-  propiedadFecha: '',
-  configurado: true,
-}), null, 2) + '\n');
-writeFileSync(join(SALIDA, '.obsidian', 'community-plugins.json'), JSON.stringify(['mapa-neuronal'], null, 2) + '\n');
+// ── 6. Obsidian ────────────────────────────────────────────────────────────────────────────────
+instalarObsidian(CAPAS,
+  'Compartido | piezas que usan varias funciones\nRutas | lo que el usuario visita\nMódulos | el código de cada función\nDatos | tablas y buckets de Supabase\nFunciones | una síntesis por función',
+  temasBase(), false);
 
 // ── 6b. El informe: lo que una auditoría diría, sacado del mapa y no de una IA ─────────────────
 // Va en la raíz del vault, fuera de las capas, para que no se dibuje como un nodo más.
