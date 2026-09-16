@@ -240,6 +240,24 @@ is untested; treat it as unknown until you measure it on your own vault.
   through — and you never have to do it in one go.
 - The local provider (Ollama) sends nothing anywhere: no key, no internet, no cost.
 
+## What a written reason saves
+
+![Measured token cost with and without the structure: 115x, 45x and 9x](docs/imagenes/ahorro-en.svg)
+
+The plugin does not save tokens by itself — the structure does, and the plugin is what makes
+the missing pieces impossible to ignore. Its own AI feature *spends* tokens: about 3,900 of
+input per suggestion, roughly **$0.04** with Claude Opus 5.
+
+What pays off is the other direction. A reason is written once and read many times: by you,
+and by any agent that works against your vault. The three rows above were measured on the
+author's vault — 254 notes, 916 links, ~147,800 tokens of wiki — by counting characters ÷ 3.7
+and comparing what each question costs to answer with and without the written structure. Your
+numbers will differ; the ratios are what travel.
+
+The honest caveat is in the figure: nobody dumps a whole wiki on every question — an agent
+greps. The defensible comparison is the first row, **reading the reason instead of opening
+both notes**, and that one is 115×.
+
 ## Large vaults
 
 Tested on a vault with 5,043 notes and 17,526 links. Each layer draws its most

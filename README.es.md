@@ -237,6 +237,24 @@ está medida: trátala como desconocida hasta que la midas en tu propio vault.
 - El proveedor local (Ollama) no manda nada a ninguna parte: sin llave, sin internet,
   sin costo.
 
+## Lo que ahorra un motivo escrito
+
+![Costo medido en tokens con y sin la estructura: 115x, 45x y 9x](docs/imagenes/ahorro-es.svg)
+
+El plugin no ahorra tokens por sí solo — los ahorra la estructura, y el plugin es lo que hace
+imposible ignorar lo que falta. Su propia función de IA **gasta**: unos 3.900 tokens de entrada
+por sugerencia, alrededor de **0,04 USD** con Claude Opus 5.
+
+Lo que rinde es la otra dirección. Un motivo se escribe una vez y se lee muchas: por ti, y por
+cualquier agente que trabaje contra tu vault. Las tres filas de arriba se midieron en el vault
+del autor —254 notas, 916 enlaces, ~147.800 tokens de wiki— contando caracteres ÷ 3,7 y
+comparando lo que cuesta responder cada pregunta con y sin la estructura escrita. Tus números
+van a ser distintos; lo que viaja son las proporciones.
+
+La advertencia honesta está en el propio gráfico: nadie vuelca el wiki entero en cada pregunta
+—un agente hace grep—. La comparación defendible es la primera fila, **leer el motivo en vez de
+abrir las dos notas**, y esa es de 115×.
+
 ## Vaults grandes
 
 Probado con 5.043 notas y 17.526 enlaces. Cada capa dibuja sus notas más conectadas (150

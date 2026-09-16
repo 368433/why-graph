@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 400" width="920" height="400" role="img" aria-label="What a written reason saves">
+<rect width="920" height="400" rx="14" fill="#0B1026"/>
+<text x="40" y="52" fill="#E6EAFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="600">What a written reason saves</text>
+<text x="40" y="76" fill="rgba(230,234,255,.62)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5">Measured on a real vault of 254 notes and 916 links</text>
+<rect x="40" y="103" width="22" height="9" rx="4" fill="#1FC8B4"/>
+<text x="70" y="112" fill="rgba(230,234,255,.62)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5">with the structure written down</text>
+<rect x="300.6" y="103" width="22" height="9" rx="4" fill="#2A3566"/>
+<text x="330.6" y="112" fill="rgba(230,234,255,.62)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5">without it</text>
+<text x="880" y="112" fill="rgba(230,234,255,.40)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" text-anchor="end">input tokens</text>
+<text x="40" y="138" fill="#E6EAFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">Why are these two notes connected?</text>
+<rect x="300" y="150" width="470" height="26" rx="4" fill="#2A3566"/>
+<rect x="300" y="150" width="6.1490112994350286" height="26" rx="4" fill="#0B1026"/>
+<rect x="300" y="150" width="4.1490112994350286" height="26" rx="4" fill="#1FC8B4"/>
+<text x="286" y="167" fill="#E6EAFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" text-anchor="end">25</text>
+<text x="286" y="182" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" text-anchor="end">read the reason</text>
+<text x="760" y="167" fill="#E6EAFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" text-anchor="end">2,832</text>
+<text x="760" y="182" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" text-anchor="end">read both notes</text>
+<text x="880" y="170" fill="#1FC8B4" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21" font-weight="600" text-anchor="end">115×</text>
+<text x="40" y="220" fill="#E6EAFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">Give me the context of a topic</text>
+<rect x="300" y="232" width="470" height="26" rx="4" fill="#2A3566"/>
+<rect x="300" y="232" width="12.39423076923077" height="26" rx="4" fill="#0B1026"/>
+<rect x="300" y="232" width="10.39423076923077" height="26" rx="4" fill="#1FC8B4"/>
+<text x="286" y="249" fill="#E6EAFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" text-anchor="end">460</text>
+<text x="286" y="264" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" text-anchor="end">read its synthesis</text>
+<text x="760" y="249" fill="#E6EAFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" text-anchor="end">20,800</text>
+<text x="760" y="264" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" text-anchor="end">read all its notes</text>
+<text x="880" y="252" fill="#1FC8B4" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21" font-weight="600" text-anchor="end">45×</text>
+<text x="40" y="302" fill="#E6EAFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">One query against the vault</text>
+<rect x="300" y="314" width="470" height="26" rx="4" fill="#2A3566"/>
+<rect x="300" y="314" width="51.60757780784844" height="26" rx="4" fill="#0B1026"/>
+<rect x="300" y="314" width="49.60757780784844" height="26" rx="4" fill="#1FC8B4"/>
+<text x="286" y="331" fill="#E6EAFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" text-anchor="end">15,600</text>
+<text x="286" y="346" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" text-anchor="end">index plus the right pages</text>
+<text x="760" y="331" fill="#E6EAFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" text-anchor="end">147,800</text>
+<text x="760" y="346" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" text-anchor="end">dump the whole wiki</text>
+<text x="880" y="334" fill="#1FC8B4" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21" font-weight="600" text-anchor="end">9×</text>
+<text x="40" y="372" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11">Method: characters ÷ 3.7 (technical Spanish), ±15%. Bars are proportional — no log scale. The last row is an upper</text>
+<text x="40" y="387" fill="rgba(230,234,255,.40)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11">bound: nobody dumps a whole wiki on every question.</text>
+</svg>
