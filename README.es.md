@@ -97,14 +97,14 @@ Es la forma habitual de instalar un plugin directo desde GitHub:
 
 1. Instala **Obsidian42 - BRAT** desde los complementos de la comunidad.
 2. Paleta de comandos → **BRAT: Add a beta plugin for testing**.
-3. Pega `DBB-FC/mapa-neuronal`.
+3. Pega `DBB-FC/why-graph`.
 
 BRAT lo instala, lo activa y lo actualiza con cada release nueva.
 
 ### A mano
 
 Baja `main.js`, `manifest.json` y `styles.css` de la
-[última release](https://github.com/DBB-FC/mapa-neuronal/releases/latest) a
+[última release](https://github.com/DBB-FC/why-graph/releases/latest) a
 `<vault>/.obsidian/plugins/mapa-neuronal/` y actívalo en Complementos de la comunidad.
 No hace falta nada más: esos tres archivos son todo el plugin.
 
@@ -275,11 +275,11 @@ No hay telemetría, ni analítica, ni servidor: el plugin no hace ninguna llamad
 salvo la de la IA que tú pides, al proveedor que configuraste.
 
 Sí lee la lista de todas tus notas —un mapa no se puede dibujar con una parte—, y los
-archivos de cada release llevan [atestación de GitHub](https://github.com/DBB-FC/mapa-neuronal/attestations),
+archivos de cada release llevan [atestación de GitHub](https://github.com/DBB-FC/why-graph/attestations),
 así que puedes comprobar que se construyeron desde este código:
 
 ```bash
-gh attestation verify main.js --repo DBB-FC/mapa-neuronal
+gh attestation verify main.js --repo DBB-FC/why-graph
 ```
 
 ## Cómo se ve
