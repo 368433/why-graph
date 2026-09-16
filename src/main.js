@@ -241,8 +241,9 @@ const EN = {
   'Abrir el mes': 'Open the month',
   'Agrupar la entrada por mes': 'Group the input layer by month',
   'No agrupar la entrada por mes': "Don't group the input layer by month",
-  'Volver a cerrar los meses': 'Close the months again',
-  '▣ {0} mes(es) abierto(s)': '▣ {0} month(s) open',
+  '▣ {0} año(s) abierto(s)': '▣ {0} year(s) open',
+  '▣ {0} mes(es) abierto(s) · toca la cápsula para cerrarlo': '▣ {0} month(s) open · tap the capsule to close',
+  'Volver a cerrar el tiempo': 'Close the timeline again',
   'Agrupar la primera capa por mes': 'Group the first layer by month',
   'La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.':
     'The input layer grows by one note a day. From this many dated notes on, they group by month, and each month opens with a long press. 0 = never group.',
@@ -593,7 +594,7 @@ class VistaMapa extends ItemView {
     this.vista = { x: 0, y: 0, k: 1 }; this.foco = null; this.sobre = null; this.solo = null; this.filtro = '';
     this.todas = false; this.conEnlace = false; this.salud = false; this.reciente = 0;
     this.camino = null; this.eligiendo = null;
-    this.colapsados = new Set(); this.forzados = new Set(); this.mesesAbiertos = new Set(); this.forzarMeses = null; this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
+    this.colapsados = new Set(); this.forzados = new Set(); this.mesesAbiertos = new Set(); this.aniosAbiertos = new Set(); this.forzarMeses = null; this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
     this.punteros = new Map(); this.D = { nodos: [], aristas: [], capas: [], temas: {} };
     this.N = []; this.E = [];
   }
@@ -726,9 +727,19 @@ class VistaMapa extends ItemView {
     this.marca.setText(T('{0} · {1} nodos · {2} enlaces', NOMBRE, this.D.nodos.length, this.D.aristas.length) + (conEnlaces ? T(' · {0} con enlaces', conEnlaces) : ''));
     if (this.solo && !this.D.temas[this.solo]) this.solo = null;
     if (this.vacios) this.listaVacios = this.calcularVacios();
+    this.pintarChips(); this.pintarEstado();   // primero la barra: su alto define el margen de arriba
     this.rehacer();
     if (this.foco && !this.porId[this.foco]) { this.foco = null; this.abrirPanel(null); }
+  }
+
+  // La barra de temas puede pasar de una fila a tres y empujar los títulos de las capas. Cada
+  // vez que cambia, el mapa se vuelve a medir: si no, las capas quedan detrás de la barra.
+  refrescarBarra() {
+    const antes = this.altoBarra || 0;
     this.pintarChips(); this.pintarEstado();
+    const ahora = this.barra ? this.barra.getBoundingClientRect().height : 0;
+    this.altoBarra = ahora;
+    if (Math.abs(ahora - antes) > 2) { this.medir(); this.pedir(); }
   }
 
   // Grafo efectivo: temas colapsados en supernodos y sus enlaces agrupados en superenlaces.
@@ -744,15 +755,29 @@ class VistaMapa extends ItemView {
     const fechadas = this.D.nodos.filter((n) => n.capa === 0 && n.mes).length;
     const umbral = Number(this.plugin.ajustes.agruparMesesDesde ?? 24);
     this.agrupaMeses = this.forzarMeses === null ? umbral > 0 && fechadas >= umbral : !!this.forzarMeses;
-    const mesDeNodo = (mes) => {
-      const id = 'mes:' + mes;
-      if (!virtuales[id]) virtuales[id] = { id, capa: 0, titulo: etiquetaMes(mes), mes, esMes: true, tema: null, propio: false, virtual: true, ruta: '', grado: 0, sinMotivo: 0 };
+    const capsula = (id, titulo, extra) => {
+      if (!virtuales[id]) virtuales[id] = Object.assign({ id, capa: 0, titulo, esMes: true, tema: null, propio: false, virtual: true, ruta: '', grado: 0, sinMotivo: 0 }, extra);
       return id;
+    };
+    // El acordeón del tiempo: con más de un año de notas fechadas se agrupa por AÑO, y el año
+    // abierto muestra sus meses. La cápsula del grupo abierto NO desaparece: es lo que se toca
+    // para volver a cerrarlo.
+    const meses = new Set(this.D.nodos.filter((n) => n.capa === 0 && n.mes).map((n) => n.mes));
+    this.porAnio = meses.size > 12;
+    const grupoDe = (n) => {
+      if (!this.agrupaMeses || n.capa !== 0 || !n.mes) return null;
+      const anio = n.mes.slice(0, 4);
+      if (this.porAnio && !this.aniosAbiertos.has(anio)) return capsula('anio:' + anio, anio, { anio, esAnio: true });
+      if (!this.mesesAbiertos.has(n.mes)) return capsula('mes:' + n.mes, etiquetaMes(n.mes), { mes: n.mes });
+      return capsula('mes:' + n.mes, etiquetaMes(n.mes), { mes: n.mes, abierta: true });
     };
     const N = [];
     for (const n of this.D.nodos) {
-      if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
-      else if (this.agrupaMeses && n.capa === 0 && n.mes && !this.mesesAbiertos.has(n.mes)) { this.rep[n.id] = mesDeNodo(n.mes); continue; }
+      // En la entrada manda el tiempo: colapsar un tema no le puede robar notas a su mes, o la
+      // cuenta de la cápsula baja sin explicación y el mes queda a medias.
+      const g = grupoDe(n);
+      if (g) { this.rep[n.id] = g; if (!this.mesesAbiertos.has(n.mes) || this.porAnio && !this.aniosAbiertos.has(n.mes.slice(0, 4))) continue; this.rep[n.id] = n.id; }
+      else if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
       else this.rep[n.id] = n.id;
       N.push(n);
     }
@@ -779,9 +804,11 @@ class VistaMapa extends ItemView {
     N.forEach((n) => { if (n.agrupados || n.virtual) n.gradoEf = this.ady[n.id].length; });
     const orden = Object.fromEntries(Object.keys(this.D.temas).map((t, i) => [t, i]));
     const posBase = new Map(this.D.nodos.map((x, i) => [x, i]));
+    // La entrada se ordena por tiempo y cada cápsula queda justo arriba de sus notas, como un
+    // acordeón. Lo que no tiene fecha (las fuentes citadas) va al final.
+    const clave = (x) => x.anio ? x.anio + '-00' : (x.mes || '9999-99');
     this.N = N.sort((p, q) => p.capa - q.capa
-      || (q.esMes ? 1 : 0) - (p.esMes ? 1 : 0)                       // las cápsulas de mes, primero
-      || (p.esMes && q.esMes ? p.mes.localeCompare(q.mes) : 0)       // y entre ellas, en orden de tiempo
+      || (p.capa === 0 ? clave(p).localeCompare(clave(q)) || (q.esMes ? 1 : 0) - (p.esMes ? 1 : 0) || String(p.titulo).localeCompare(String(q.titulo)) : 0)
       || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99)
       || (posBase.get(p) ?? 0) - (posBase.get(q) ?? 0));
     // Revelado progresivo: cada capa muestra sus notas más conectadas; el resto se trae buscando o tocando.
@@ -792,7 +819,7 @@ class VistaMapa extends ItemView {
       const rango = col.slice().sort((a, b) => (this.ady[b.id]?.length || 0) - (this.ady[a.id]?.length || 0));
       const visibles = new Set(rango.slice(0, max).map((x) => x.id));
       let ocultas = 0;
-      for (const x of col) { x.oculto = !visibles.has(x.id) && !this.forzados.has(x.id) && !x.agrupados && !x.virtual; if (x.oculto) ocultas++; }
+      for (const x of col) { x.oculto = !visibles.has(x.id) && !this.forzados.has(x.id) && !x.agrupados && !x.virtual && !x.esMes; if (x.oculto) ocultas++; }
       this.ocultas[capa] = ocultas;
     });
     if (this.foco && !this.porId[this.foco]) this.foco = this.rep[this.foco] || null;
@@ -843,7 +870,8 @@ class VistaMapa extends ItemView {
     const t = [];
     if (this.radial) t.push(this.foco ? T('◎ radial') : T('◎ radial: toca una nota'));
     if (this.colapsados.size) t.push(T('◉ {0} tema(s) colapsado(s)', this.colapsados.size));
-    if (this.mesesAbiertos.size) t.push(T('▣ {0} mes(es) abierto(s)', this.mesesAbiertos.size));
+    if (this.aniosAbiertos.size) t.push(T('▣ {0} año(s) abierto(s)', this.aniosAbiertos.size));
+    if (this.mesesAbiertos.size) t.push(T('▣ {0} mes(es) abierto(s) · toca la cápsula para cerrarlo', this.mesesAbiertos.size));
     if (this.vacios) t.push(T('⌁ vacíos'));
     if (this.salud) t.push(T('❤︎ salud'));
     if (this.reciente) t.push(T('◷ últimos {0} días', this.reciente));
@@ -852,11 +880,18 @@ class VistaMapa extends ItemView {
     if (this.eligiendo) t.push(this.eligiendo.desde ? T('→ toca la nota de destino') : T('→ toca la nota de origen'));
     this.estado.setText(t.join(' · '));
   }
-  alternarMes(mes) {
-    this.mesesAbiertos.has(mes) ? this.mesesAbiertos.delete(mes) : this.mesesAbiertos.add(mes);
+  // Un clic en la cápsula la abre o la cierra. La cápsula del grupo abierto sigue dibujada
+  // justo arriba de sus notas: sin eso se puede abrir un mes y no hay cómo cerrarlo.
+  alternarTiempo(n) {
+    const set = n.esAnio ? this.aniosAbiertos : this.mesesAbiertos, clave = n.esAnio ? n.anio : n.mes;
+    if (set.has(clave)) {
+      set.delete(clave);
+      if (n.esAnio) [...this.mesesAbiertos].filter((m) => m.startsWith(clave)).forEach((m) => this.mesesAbiertos.delete(m));
+    } else set.add(clave);
     this.camino = null; this.sugerencia = null; this.foco = null; this.abrirPanel(null);
-    this.rehacer(); this.pintarEstado();
+    this.rehacer(); this.refrescarBarra();
   }
+  alternarMes(mes) { this.alternarTiempo({ mes }); }
   alternarColapso(t) {
     this.colapsados.has(t) ? this.colapsados.delete(t) : this.colapsados.add(t);
     this.camino = null; this.sugerencia = null;
@@ -904,8 +939,8 @@ class VistaMapa extends ItemView {
       this.forzarMeses = !this.agrupaMeses; this.mesesAbiertos.clear(); this.foco = null; this.abrirPanel(null);
       this.rehacer(); this.pintarEstado();
     }));
-    if (this.mesesAbiertos.size) m.addItem((i) => i.setTitle(T('Volver a cerrar los meses')).setIcon('calendar-minus').onClick(() => {
-      this.mesesAbiertos.clear(); this.rehacer(); this.pintarEstado();
+    if (this.mesesAbiertos.size || this.aniosAbiertos.size) m.addItem((i) => i.setTitle(T('Volver a cerrar el tiempo')).setIcon('calendar-minus').onClick(() => {
+      this.mesesAbiertos.clear(); this.aniosAbiertos.clear(); this.rehacer(); this.refrescarBarra();
     }));
     if (this.colapsados.size) m.addItem((i) => i.setTitle(T('Expandir todos')).setIcon('expand').onClick(() => { this.colapsados.clear(); this.rehacer(); this.pintarChips(); this.pintarEstado(); }));
     m.addSeparator();
@@ -941,9 +976,13 @@ class VistaMapa extends ItemView {
     const margen = this.angosto() ? 70 : Math.max(120, this.W * 0.1), paso = (this.anchoLogico - reserva - 2 * margen) / (n - 1);
     this.capas = this.D.capas.map((c, i) => {
       const col = this.N.filter((x) => x.capa === i && !x.oculto), alto = Hl - arriba - abajo;
-      const minimo = col.some((x) => x.esMes) ? 34 : 0;            // una cápsula mide más que un punto
-      const gap = Math.max(minimo, Math.min(alto / Math.max(col.length, 1), this.angosto() ? 46 : 28));
-      const y0 = arriba + (alto - gap * (col.length - 1)) / 2;
+      // Una cápsula mide más que un punto y pide más aire, pero nunca más del que hay: si se
+      // fuerza, el centrado empuja la columna ARRIBA de su margen y los títulos quedan detrás
+      // de la barra de temas.
+      const minimo = col.some((x) => x.esMes) ? 34 : 0;
+      const cabe = alto / Math.max(col.length - 1, 1);
+      const gap = Math.min(Math.max(minimo, this.angosto() ? 46 : 28), Math.max(cabe, 9));
+      const y0 = Math.max(arriba, arriba + (alto - gap * (col.length - 1)) / 2);
       col.forEach((x, j) => { x.x = margen + i * paso; x.y = y0 + j * gap; });
       return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + gap * Math.max(col.length - 1, 0) + 16, def: c };
     });
@@ -978,6 +1017,8 @@ class VistaMapa extends ItemView {
     v.x = cx - ((cx - v.x) * k) / v.k; v.y = cy - ((cy - v.y) * k) / v.k; v.k = k; this.pedir();
   }
   enfocar(id, centrar) {
+    const cap = this.porId?.[id];
+    if (cap && cap.esMes) return this.alternarTiempo(cap);
     let n = this.porId[id]; if (!n) return;
     if (n.oculto) { this.forzados.add(id); this.rehacer(); n = this.porId[id]; }
     this.foco = id; this.camino = null; this.sugerencia = null;
@@ -1141,16 +1182,17 @@ class VistaMapa extends ItemView {
       const activo = enCamino ? enCamino.has(n.id) : this.sugerencia ? enSug : (!nivel || n.id in nivel) && this.activo(n);
       if (n.esMes) { // un mes se dibuja como cápsula con su nombre: un punto grande no dice «mes»
         ctx.font = f(600, 11.5);
-        const etq = `${n.titulo} · ${n.agrupados}`;
+        const etq = n.abierta ? `${n.titulo} ▾` : `${n.titulo} · ${n.agrupados}`;
         const w = ctx.measureText(etq).width, alto = 21 / sk, pad = 9 / vista.k, rr = alto / 2;
         const bx = n.x - (w + pad * 2) / 2, by = n.y - alto / 2;
-        ctx.fillStyle = rgba('#C9D1FF', activo ? 0.13 : 0.05);
-        ctx.strokeStyle = rgba('#C9D1FF', activo ? 0.52 : 0.16);
+        ctx.fillStyle = rgba('#C9D1FF', n.abierta ? 0.02 : activo ? 0.13 : 0.05);
+        ctx.strokeStyle = rgba('#C9D1FF', n.abierta ? 0.3 : activo ? 0.52 : 0.16);
+        if (n.abierta) ctx.setLineDash([4 / vista.k, 3 / vista.k]);
         ctx.lineWidth = 1.2 / vista.k;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(bx, by, w + pad * 2, alto, rr); else ctx.rect(bx, by, w + pad * 2, alto);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = activo ? '#FFFFFF' : 'rgba(230,234,255,.42)';
+        ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = n.abierta ? 'rgba(230,234,255,.55)' : activo ? '#FFFFFF' : 'rgba(230,234,255,.42)';
         ctx.fillText(etq, bx + pad, n.y + 4 / sk);
         cajas.push({ x: bx - 3 / vista.k, y: by - 3 / vista.k, w: w + pad * 2 + 6 / vista.k, h: alto + 6 / vista.k });
         continue; // ni punto ni rótulo aparte: la cápsula ya los reemplaza
@@ -1222,7 +1264,7 @@ class VistaMapa extends ItemView {
       if (!t || t.movio || e.type === 'pointercancel') return;
       const [x, y] = local(e), n = this.nodoEn(x, y);
       if (this.eligiendo) return this.elegirCamino(n);
-      if (n && (Date.now() - t.t > 550) && n.esMes) return this.alternarMes(n.mes);
+      if (n && (Date.now() - t.t > 550) && n.esMes) return this.alternarTiempo(n);
       if (n && (Date.now() - t.t > 550) && n.tema && (n.agrupados || n.capa === this.D.capas.length - 1)) return this.alternarColapso(n.tema);
       this.camino = null; this.sugerencia = null;
       if (!n) { this.foco = null; this.abrirPanel(this.vacios ? 'vacios' : null); if (this.radial) { this.medir(); this.pintarEstado(); } this.pedir(); return; }

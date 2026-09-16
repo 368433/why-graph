@@ -192,9 +192,19 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
 
   v2.alternarMes('2026-08');
   p.igual('al abrir un mes, sus 30 notas aparecen', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 30);
-  p.igual('y las otras siguen cerradas', capsulas().length, 3);
+  p.cierto('la cápsula del mes abierto NO desaparece: es lo que se toca para cerrarlo', !!capsula('2026-08') && capsula('2026-08').abierta === true);
+  p.igual('y las otras tres siguen cerradas', capsulas().filter((n) => !n.abierta).length, 3);
+  p.cierto('la cápsula queda justo arriba de sus notas', (() => {
+    const c0 = capa0(), i = c0.findIndex((n) => n.esMes && n.mes === '2026-08');
+    return i >= 0 && c0[i + 1] && c0[i + 1].mes === '2026-08' && !c0[i + 1].esMes;
+  })());
+  // un clic en la cápsula la cierra: es el gesto que cualquiera prueba primero
+  v2.enfocar('mes:2026-08', false);
+  p.igual('un clic en la cápsula abierta la cierra', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 0);
+  p.igual('y vuelven a ser cuatro cerradas', capsulas().filter((n) => !n.abierta).length, 4);
+  v2.enfocar('mes:2026-08', false);
+  p.igual('y un clic la vuelve a abrir', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 30);
   v2.alternarMes('2026-08');
-  p.igual('se vuelve a cerrar', capsulas().length, 4);
 
   ajLargo.agruparMesesDesde = 0;
   await v2.recargar();
