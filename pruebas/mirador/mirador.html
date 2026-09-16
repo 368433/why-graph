@@ -161,6 +161,12 @@ window.exports = window.module.exports;
   window.__v = v;
   // Un foco opcional por la URL: ?foco=nombre-de-nota
   const q = new URLSearchParams(location.search);
+  // ?colapsar=funciones → cada tema en su nodo de síntesis, salvo los que no tienen una
+  if (q.get('colapsar')) {
+    const fuera = new Set((q.get('colapsar') === 'funciones' ? 'compartido,sitio' : '').split(',').filter(Boolean));
+    Object.keys(v.D.temas).filter((t) => !fuera.has(t)).forEach((t) => v.colapsados.add(t));
+    v.rehacer();
+  }
   const buscar = (t) => v.N.find((x) => x.titulo.toLowerCase().includes(String(t).toLowerCase()));
   const vista = q.get('vista') || '';
   if (vista === 'radial') {
