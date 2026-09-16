@@ -99,14 +99,14 @@ The usual way to install a plugin straight from GitHub:
 
 1. Install **Obsidian42 - BRAT** from the community plugins.
 2. Command palette → **BRAT: Add a beta plugin for testing**.
-3. Paste `DBB-FC/mapa-neuronal`.
+3. Paste `DBB-FC/why-graph`.
 
 BRAT installs it, enables it, and updates it on every release.
 
 ### By hand
 
 Download `main.js`, `manifest.json` and `styles.css` from the
-[latest release](https://github.com/DBB-FC/mapa-neuronal/releases/latest) into
+[latest release](https://github.com/DBB-FC/why-graph/releases/latest) into
 `<vault>/.obsidian/plugins/mapa-neuronal/`, then enable it in Settings → Community
 plugins. Nothing else is needed: those three files are the whole plugin.
 
@@ -278,11 +278,11 @@ There is no telemetry, no analytics and no server: the plugin makes no network r
 except the AI call you ask for, to the provider you configured.
 
 It does read the list of every note in your vault — a map cannot be drawn from a subset —
-and the release assets carry [GitHub attestations](https://github.com/DBB-FC/mapa-neuronal/attestations),
+and the release assets carry [GitHub attestations](https://github.com/DBB-FC/why-graph/attestations),
 so you can verify they were built from this source:
 
 ```bash
-gh attestation verify main.js --repo DBB-FC/mapa-neuronal
+gh attestation verify main.js --repo DBB-FC/why-graph
 ```
 
 ## Looks
