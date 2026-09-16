@@ -417,7 +417,7 @@ function leerAjustes(s) {
 
 // Quita el formato Markdown sin romper los nombres: «**negrita**», «_cursiva_» y «`código`» pierden
 // sus marcas, pero «user_id» o «tabla_2» conservan su guion bajo. Antes se borraba todo «_» y «*», y
-// en un mapa de código «audit_logs» se leía «auditlogs».
+// en un mapa de código «user_id» se leía «userid».
 const sinFormato = (t) => String(t)
   .replace(/`([^`]*)`/g, '$1')
   .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '$2')

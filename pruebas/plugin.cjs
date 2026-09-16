@@ -260,7 +260,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   }
 
   // ── 12. Quitar formato sin romper nombres ────────────────────────────────────────────────────
-  // Antes se borraba todo «_» y «*»: en un mapa de código «audit_logs» se leía «auditlogs».
+  // Antes se borraba todo «_» y «*»: en un mapa de código «user_id» se leía «userid».
   p.igual('el resumen conserva el guion bajo de un nombre', resumir('La tabla user_id guarda el dueño.'), 'La tabla user_id guarda el dueño.');
   p.igual('el resumen quita la negrita', resumir('Un **cambio** grande.'), 'Un cambio grande.');
   p.igual('el resumen quita la cursiva con guion bajo', resumir('Algo _importante_ aquí.'), 'Algo importante aquí.');
