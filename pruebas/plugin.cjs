@@ -3,10 +3,10 @@
  *   npm test        construye y corre todo
  *   node pruebas/plugin.cjs [ruta/main.js]
  */
-const { cargarPlugin, vaultSimulado, pruebas } = require('./simulado.cjs');
+const { cargarPlugin, vaultSimulado, pruebas, el } = require('./simulado.cjs');
 
-const { Plugin, interno } = cargarPlugin(process.argv[2]);
-const { construir, VistaMapa, AJUSTES_BASE, enlacesDe, detectarCarpetas, PROVEEDORES, CLAVE_IA } = interno;
+const { Plugin, interno, filas: filasUI } = cargarPlugin(process.argv[2]);
+const { construir, VistaMapa, AjustesMapa, AJUSTES_BASE, enlacesDe, detectarCarpetas, PROVEEDORES, CLAVE_IA } = interno;
 const p = pruebas('plugin');
 
 // ── El vault de prueba: 3 capas, 2 temas, un enlace con motivo y otro sin él ──────────────────
@@ -186,6 +186,28 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   p.igual('manda personas a entidades', capaDe('personas'), 1);
   p.igual('manda temas a la última', capaDe('temas'), 3);
   p.igual('no muestra las plantillas', capaDe('plantillas'), -1);
+
+  // ── 11. La pantalla de ajustes se dibuja COMPLETA con cada proveedor ─────────────────────────
+  // La única prueba que dibujaba esta pantalla corría en Chrome, y se salta sola donde no hay
+  // Chrome (CI incluido). Un TypeError a media pantalla —llamar un método que `PluginSettingTab`
+  // no tiene— la cortaba dejando el campo «Modelo» y el botón «Probar» invisibles, y las 77
+  // pruebas seguían en verde. Esta afirma que la ÚLTIMA fila existe: si algo revienta antes,
+  // no llega.
+  for (const prov of Object.keys(PROVEEDORES)) {
+    pl2.ajustes.proveedorIA = prov;
+    const tab = new AjustesMapa(app, pl2);
+    tab.containerEl = el();
+    filasUI.length = 0;
+    let error = null;
+    try { tab.display(); } catch (e) { error = e.message; }
+    p.igual(`la pantalla de ajustes no revienta con ${prov}`, error, null);
+    // El arnés corre en inglés, así que se afirma sobre las etiquetas traducidas; que la versión
+    // en español exista lo garantiza pruebas/idioma.cjs.
+    p.cierto(`con ${prov} llega hasta el final (Reset)`, filasUI.includes('Reset'));
+    p.cierto(`con ${prov} se dibuja el campo Model`, filasUI.includes('Model'));
+    p.cierto(`con ${prov} se dibuja el botón de probar`, filasUI.includes('Test the connection'));
+    p.cierto(`con ${prov} se dibujan las 21 filas`, filasUI.length >= 21);
+  }
 
   process.exit(p.cerrar() ? 1 : 0);
 })().catch((e) => { console.error('ERROR INESPERADO\n', e.stack); process.exit(1); });
