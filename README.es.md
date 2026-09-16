@@ -79,6 +79,11 @@ se escriba una línea en tu nota. La versión interactiva del diagrama está en
 
   ![La capa de entrada agrupada en cápsulas de mes](docs/imagenes/06-meses.webp)
 
+- **Los recortes se agrupan por su origen.** La capa de entrada responde dos preguntas: *qué
+  escribí yo* (el tiempo) y *de dónde saqué esto* (el origen). Las notas con una propiedad de
+  fuente —el Web Clipper de Obsidian escribe `source`— se pliegan en cápsulas por dominio:
+  `github.com · 12`, `x.com · 8`. Un origen escrito a mano también sirve, agrupado por ese texto.
+
 - **Vista radial.** Centra una nota y mira su mundo en anillos: vecinos directos, luego
   los de ellos. La animación viaja hacia fuera, anillo por anillo.
 

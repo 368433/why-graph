@@ -247,6 +247,9 @@ const EN = {
   'Agrupar la primera capa por mes': 'Group the first layer by month',
   'La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.':
     'The input layer grows by one note a day. From this many dated notes on, they group by month, and each month opens with a long press. 0 = never group.',
+  'Propiedad de origen': 'Source property',
+  'Propiedad del frontmatter que dice de dónde vino una nota. El Web Clipper de Obsidian escribe «source». Si es una URL se agrupa por dominio; si es un texto, por ese texto. Vacío = no se agrupa por origen.':
+    'The frontmatter property that says where a note came from. Obsidian Web Clipper writes "source". A URL groups by domain; plain text groups by that text. Empty = no grouping by origin.',
   // panel: títulos de los grupos de conexiones
   'Contiene · {0}': 'Contains · {0}',
   'notas de {0} que cuelgan de este tema': 'notes in {0} that hang from this topic',
@@ -366,7 +369,8 @@ const AJUSTES_BASE = {
   seccionMotivos: 'Conexiones',
   configurado: false,
   maxPorCapa: 150,
-  agruparMesesDesde: 24,   // 0 = nunca agrupar la primera capa por mes
+  agruparMesesDesde: 24,   // 0 = nunca agrupar la primera capa (ni por mes ni por origen)
+  propiedadOrigen: 'source',
 };
 // Las llaves viven en el localStorage del vault (por dispositivo): NO viajan por Sync ni por git.
 const CLAVE_IA = (proveedor) => `mapa-neuronal-key-${proveedor}`;
@@ -382,6 +386,18 @@ const MOTIVO = /^- \[\[([^\]|#]+)\]\]\s+—\s+(.+)$/gm;
 // fechadas se agrupan por mes, y el mes se abre con un toque sostenido.
 const FECHA = /(\d{4})-(\d{2})(?:-\d{2})?/;
 const mesDe = (...textos) => { for (const t of textos) { const m = FECHA.exec(String(t || '')); if (m) return `${m[1]}-${m[2]}`; } return null; };
+// De dónde vino una nota. El Web Clipper de Obsidian escribe «source» con la URL; mucha
+// gente usa su propia propiedad y a veces no es una URL sino un texto («Skool — Imperio»).
+// Las dos sirven: de una URL se toma el dominio, de un texto se toma el texto.
+function origenDe(fm, s) {
+  const prop = String(s.propiedadOrigen || '').trim();
+  if (!prop) return null;
+  const bruto = String([].concat(fm[prop] || [])[0] || '').trim();
+  if (!bruto) return null;
+  const url = bruto.match(/^https?:\/\/([^/\s]+)/i);
+  if (url) return url[1].replace(/^www\./i, '').toLowerCase();
+  return bruto.slice(0, 28);
+}
 const etiquetaMes = (mes) => {
   const [a, m] = mes.split('-');
   const d = new Date(Number(a), Number(m) - 1, 1);
@@ -460,7 +476,8 @@ async function construir(app, s) {
     if (tema && !cfg.temas[tema]) cfg.temas[tema] = [tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
     nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: String(fm.title || f.basename).slice(0, 90), tema,
       propio: !!tema, updated: fm.updated ? String(fm.updated) : null, resumenAprobado: fm.resumen ? String(fm.resumen) : null,
-      enlaces: enlacesDe(fm, s), mes: capa === 0 ? mesDe(f.basename, fm.title, fm.date, f.path) : null };
+      enlaces: enlacesDe(fm, s), mes: capa === 0 ? mesDe(f.basename, fm.title, fm.date, f.path) : null,
+      origen: capa === 0 ? origenDe(fm, s) : null };
     porRuta[f.path] = f.path;
   }
   const resueltos = app.metadataCache.resolvedLinks, sinMotivoPorNota = {}, frases = {};
@@ -594,7 +611,7 @@ class VistaMapa extends ItemView {
     this.vista = { x: 0, y: 0, k: 1 }; this.foco = null; this.sobre = null; this.solo = null; this.filtro = '';
     this.todas = false; this.conEnlace = false; this.salud = false; this.reciente = 0;
     this.camino = null; this.eligiendo = null;
-    this.colapsados = new Set(); this.forzados = new Set(); this.mesesAbiertos = new Set(); this.aniosAbiertos = new Set(); this.forzarMeses = null; this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
+    this.colapsados = new Set(); this.forzados = new Set(); this.mesesAbiertos = new Set(); this.aniosAbiertos = new Set(); this.origenesAbiertos = new Set(); this.forzarMeses = null; this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
     this.punteros = new Map(); this.D = { nodos: [], aristas: [], capas: [], temas: {} };
     this.N = []; this.E = [];
   }
@@ -764,19 +781,31 @@ class VistaMapa extends ItemView {
     // para volver a cerrarlo.
     const meses = new Set(this.D.nodos.filter((n) => n.capa === 0 && n.mes).map((n) => n.mes));
     this.porAnio = meses.size > 12;
+    // La entrada responde dos preguntas distintas: «¿qué escribí yo?» (el tiempo) y «¿de dónde
+    // saqué esto?» (el origen). Cada una tiene su acordeón, y las dos se abren con un clic.
+    const conOrigen = this.D.nodos.filter((n) => n.capa === 0 && !n.mes && n.origen);
+    const origenes = new Set(conOrigen.map((n) => n.origen));
+    this.agrupaOrigen = umbral > 0 && conOrigen.length >= 6 && origenes.size >= 2;
     const grupoDe = (n) => {
-      if (!this.agrupaMeses || n.capa !== 0 || !n.mes) return null;
-      const anio = n.mes.slice(0, 4);
-      if (this.porAnio && !this.aniosAbiertos.has(anio)) return capsula('anio:' + anio, anio, { anio, esAnio: true });
-      if (!this.mesesAbiertos.has(n.mes)) return capsula('mes:' + n.mes, etiquetaMes(n.mes), { mes: n.mes });
-      return capsula('mes:' + n.mes, etiquetaMes(n.mes), { mes: n.mes, abierta: true });
+      if (n.capa !== 0) return null;
+      if (this.agrupaMeses && n.mes) {
+        const anio = n.mes.slice(0, 4);
+        if (this.porAnio && !this.aniosAbiertos.has(anio)) return capsula('anio:' + anio, anio, { grupo: 'anio', clave: anio, anio, esAnio: true });
+        const abierta = this.mesesAbiertos.has(n.mes);
+        return capsula('mes:' + n.mes, etiquetaMes(n.mes), { grupo: 'mes', clave: n.mes, mes: n.mes, abierta });
+      }
+      if (this.agrupaOrigen && n.origen) {
+        const abierta = this.origenesAbiertos.has(n.origen);
+        return capsula('origen:' + n.origen, n.origen, { grupo: 'origen', clave: n.origen, origen: n.origen, abierta });
+      }
+      return null;
     };
     const N = [];
     for (const n of this.D.nodos) {
       // En la entrada manda el tiempo: colapsar un tema no le puede robar notas a su mes, o la
       // cuenta de la cápsula baja sin explicación y el mes queda a medias.
       const g = grupoDe(n);
-      if (g) { this.rep[n.id] = g; if (!this.mesesAbiertos.has(n.mes) || this.porAnio && !this.aniosAbiertos.has(n.mes.slice(0, 4))) continue; this.rep[n.id] = n.id; }
+      if (g) { this.rep[n.id] = g; if (!virtuales[g].abierta) continue; this.rep[n.id] = n.id; }
       else if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
       else this.rep[n.id] = n.id;
       N.push(n);
@@ -806,7 +835,7 @@ class VistaMapa extends ItemView {
     const posBase = new Map(this.D.nodos.map((x, i) => [x, i]));
     // La entrada se ordena por tiempo y cada cápsula queda justo arriba de sus notas, como un
     // acordeón. Lo que no tiene fecha (las fuentes citadas) va al final.
-    const clave = (x) => x.anio ? x.anio + '-00' : (x.mes || '9999-99');
+    const clave = (x) => x.anio ? x.anio + '-00' : x.mes ? x.mes : x.origen ? '9998-' + x.origen : '9999-99';
     this.N = N.sort((p, q) => p.capa - q.capa
       || (p.capa === 0 ? clave(p).localeCompare(clave(q)) || (q.esMes ? 1 : 0) - (p.esMes ? 1 : 0) || String(p.titulo).localeCompare(String(q.titulo)) : 0)
       || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99)
@@ -883,10 +912,13 @@ class VistaMapa extends ItemView {
   // Un clic en la cápsula la abre o la cierra. La cápsula del grupo abierto sigue dibujada
   // justo arriba de sus notas: sin eso se puede abrir un mes y no hay cómo cerrarlo.
   alternarTiempo(n) {
-    const set = n.esAnio ? this.aniosAbiertos : this.mesesAbiertos, clave = n.esAnio ? n.anio : n.mes;
+    const sets = { anio: this.aniosAbiertos, mes: this.mesesAbiertos, origen: this.origenesAbiertos };
+    const grupo = n.grupo || (n.esAnio ? 'anio' : 'mes'), clave = n.clave ?? (n.esAnio ? n.anio : n.mes);
+    const set = sets[grupo];
     if (set.has(clave)) {
       set.delete(clave);
-      if (n.esAnio) [...this.mesesAbiertos].filter((m) => m.startsWith(clave)).forEach((m) => this.mesesAbiertos.delete(m));
+      // cerrar un año cierra también los meses que quedaron abiertos dentro
+      if (grupo === 'anio') [...this.mesesAbiertos].filter((m) => m.startsWith(clave)).forEach((m) => this.mesesAbiertos.delete(m));
     } else set.add(clave);
     this.camino = null; this.sugerencia = null; this.foco = null; this.abrirPanel(null);
     this.rehacer(); this.refrescarBarra();
@@ -939,8 +971,8 @@ class VistaMapa extends ItemView {
       this.forzarMeses = !this.agrupaMeses; this.mesesAbiertos.clear(); this.foco = null; this.abrirPanel(null);
       this.rehacer(); this.pintarEstado();
     }));
-    if (this.mesesAbiertos.size || this.aniosAbiertos.size) m.addItem((i) => i.setTitle(T('Volver a cerrar el tiempo')).setIcon('calendar-minus').onClick(() => {
-      this.mesesAbiertos.clear(); this.aniosAbiertos.clear(); this.rehacer(); this.refrescarBarra();
+    if (this.mesesAbiertos.size || this.aniosAbiertos.size || this.origenesAbiertos.size) m.addItem((i) => i.setTitle(T('Volver a cerrar el tiempo')).setIcon('calendar-minus').onClick(() => {
+      this.mesesAbiertos.clear(); this.aniosAbiertos.clear(); this.origenesAbiertos.clear(); this.rehacer(); this.refrescarBarra();
     }));
     if (this.colapsados.size) m.addItem((i) => i.setTitle(T('Expandir todos')).setIcon('expand').onClick(() => { this.colapsados.clear(); this.rehacer(); this.pintarChips(); this.pintarEstado(); }));
     m.addSeparator();
@@ -1182,9 +1214,13 @@ class VistaMapa extends ItemView {
       const activo = enCamino ? enCamino.has(n.id) : this.sugerencia ? enSug : (!nivel || n.id in nivel) && this.activo(n);
       if (n.esMes) { // un mes se dibuja como cápsula con su nombre: un punto grande no dice «mes»
         ctx.font = f(600, 11.5);
-        const etq = n.abierta ? `${n.titulo} ▾` : `${n.titulo} · ${n.agrupados}`;
+        const corto = String(n.titulo).length > 20 ? String(n.titulo).slice(0, 19) + '…' : n.titulo;
+        const etq = n.abierta ? `${corto} ▾` : `${corto} · ${n.agrupados}`;
         const w = ctx.measureText(etq).width, alto = 21 / sk, pad = 9 / vista.k, rr = alto / 2;
-        const bx = n.x - (w + pad * 2) / 2, by = n.y - alto / 2;
+        // Una cápsula ancha centrada en su columna se sale por la izquierda del lienzo: se acota
+        // al borde visible en vez de dejarla cortada.
+        const izq = -vista.x / vista.k + 6 / vista.k;
+        const bx = Math.max(izq, n.x - (w + pad * 2) / 2), by = n.y - alto / 2;
         ctx.fillStyle = rgba('#C9D1FF', n.abierta ? 0.02 : activo ? 0.13 : 0.05);
         ctx.strokeStyle = rgba('#C9D1FF', n.abierta ? 0.3 : activo ? 0.52 : 0.16);
         if (n.abierta) ctx.setLineDash([4 / vista.k, 3 / vista.k]);
@@ -1565,6 +1601,8 @@ class AjustesMapa extends PluginSettingTab {
     new Setting(c).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Propiedad de enlaces externos')).setDesc(T('Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.'))
       .addText((t) => t.setValue(p.ajustes.propiedadEnlaces).onChange(async (v) => { p.ajustes.propiedadEnlaces = v.trim(); await p.guardar(); }));
+    new Setting(c).setName(T('Propiedad de origen')).setDesc(T('Propiedad del frontmatter que dice de dónde vino una nota. El Web Clipper de Obsidian escribe «source». Si es una URL se agrupa por dominio; si es un texto, por ese texto. Vacío = no se agrupa por origen.'))
+      .addText((t) => t.setValue(p.ajustes.propiedadOrigen).onChange(async (v) => { p.ajustes.propiedadOrigen = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Propiedad de fecha de modificación')).setDesc(T('Si la escribes, al aprobar un motivo se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.'))
       .addText((t) => t.setValue(p.ajustes.propiedadFecha).onChange(async (v) => { p.ajustes.propiedadFecha = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Sección de conexiones')).setDesc(T('Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).'))
