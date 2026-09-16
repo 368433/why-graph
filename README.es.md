@@ -19,7 +19,7 @@
 
 <sub>Cinco vistas reales, sin maquetas: el mapa por capas · una nota con todos sus motivos · los vacíos · un camino entre dos notas · la vista radial</sub>
 
-<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Invítame un café" height="48"></a>
+<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20beer&emoji=%F0%9F%8D%BA&slug=DbbLabs&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Invítame una cerveza" height="46"></a>
 
 </div>
 
@@ -378,9 +378,9 @@ Hecho por **Felipe Córdova** · Powered by **[DBB Labs](https://dontbuybuild.cl
 
 <sub>Es el nombre de la empresa, no un eslogan: un estudio de sistemas a medida.<br>Compre lo estándar. Construya lo estratégico.</sub>
 
-<sub>Gratis, MIT, sin versión de pago. Si el mapa te mostró algo que no habías visto, un café se
+<sub>Gratis, MIT, sin versión de pago. Si el mapa te mostró algo que no habías visto, una cerveza se
 agradece — y si no, el plugin funciona exactamente igual.</sub>
 
-<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Invítame un café" height="48"></a>
+<a href="https://www.buymeacoffee.com/DbbLabs" target="_blank"><img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20beer&emoji=%F0%9F%8D%BA&slug=DbbLabs&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Invítame una cerveza" height="46"></a>
 
 </div>
