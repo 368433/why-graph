@@ -241,7 +241,7 @@ for (const [id, d] of datos) {
     '---',
     '',
     // El nombre va en el título y NO se repite aquí: el resumen del plugin borra los «_» (los toma
-    // por formato Markdown) y «audit_logs» se leía «auditlogs». Pendiente para su próxima versión.
+    // por formato Markdown) y «user_id» se leía «userid». Pendiente para su próxima versión.
     `${d.tipo === 'bucket' ? 'Bucket de Supabase Storage' : 'Tabla de Supabase'} de la función «${d.tema}». ` +
       `La leen ${d.lectores.size} módulo(s) y la escriben ${d.escritores.size}.`,
     '',
