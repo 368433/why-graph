@@ -7,7 +7,9 @@ on:
     tags: ['*']
 
 permissions:
-  contents: write
+  contents: write      # crear el release
+  id-token: write      # firmar la procedencia de los archivos
+  attestations: write  # guardar la atestación en GitHub
 
 jobs:
   build:
@@ -37,6 +39,16 @@ jobs:
       - name: Construir y probar (mapa, escritura, IA, idioma)
         # La prueba de interfaz necesita Chrome y se salta sola si no está.
         run: npm test
+
+      # Deja constancia criptográfica de que estos archivos se construyeron desde ESTE
+      # repositorio y este commit. Cualquiera lo comprueba con:
+      #   gh attestation verify main.js --repo DBB-FC/mapa-neuronal
+      - name: Firmar la procedencia de los archivos
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            main.js
+            styles.css
 
       - name: Publicar el release
         env:

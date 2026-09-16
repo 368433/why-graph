@@ -201,6 +201,14 @@ posible es exportar: un PNG en la carpeta que elijas.
 No hay telemetría, ni analítica, ni servidor: el plugin no hace ninguna llamada de red
 salvo la de la IA que tú pides, al proveedor que configuraste.
 
+Sí lee la lista de todas tus notas —un mapa no se puede dibujar con una parte—, y los
+archivos de cada release llevan [atestación de GitHub](https://github.com/DBB-FC/mapa-neuronal/attestations),
+así que puedes comprobar que se construyeron desde este código:
+
+```bash
+gh attestation verify main.js --repo DBB-FC/mapa-neuronal
+```
+
 ## Cómo se ve
 
 El mapa se dibuja sobre un lienzo oscuro con tema claro y con tema oscuro — como un cielo
