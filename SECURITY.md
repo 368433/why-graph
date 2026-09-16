@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Open a [private security advisory](https://github.com/DBB-Labs/mapa-neuronal/security/advisories/new)
+Open a [private security advisory](https://github.com/DBB-FC/mapa-neuronal/security/advisories/new)
 on this repository. Please do not open a public issue for a vulnerability.
 
 Expect a first answer within a week. There is no bounty programme.
