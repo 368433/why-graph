@@ -1,7 +1,7 @@
 {
-  "name": "mapa-neuronal",
-  "version": "1.18.0",
-  "description": "A graph that explains itself: your vault as a layered neural map, with the reason each note links to the next — written by you, or suggested by your own AI with verified quotes and your approval.",
+  "name": "why-graph",
+  "version": "1.19.0",
+  "description": "A graph that explains itself: your vault as a layered map, with the reason each note links to the next — written by you, or suggested by your own AI with verified quotes.",
   "private": true,
   "type": "module",
   "scripts": {

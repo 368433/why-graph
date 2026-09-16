@@ -60,7 +60,7 @@ faltan.forEach((k) => console.log('  SIN TRADUCIR  ' + JSON.stringify(k)));
 sobran.forEach((k) => console.log('  YA NO SE USA  ' + JSON.stringify(k)));
 
 // Los dos idiomas tienen que producir texto distinto y sustituir los valores.
-const muestras = [['Mapa neuronal · {0} nodos · {1} enlaces', 42, 74], ['Camino · {0} salto(s)', 2], ['Aplicar']];
+const muestras = [['{0} · {1} nodos · {2} enlaces', 'Why Graph', 42, 74], ['Camino · {0} salto(s)', 2], ['Aplicar']];
 const salida = {};
 for (const idioma of ['es', 'en']) {
   global.__idioma = idioma;
