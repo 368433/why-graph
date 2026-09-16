@@ -236,6 +236,16 @@ const EN = {
   'Restablecer': 'Reset',
   'Vuelve a los valores por defecto.': 'Back to the default values.',
   'Restablecer no borra la llave guardada en este dispositivo.': 'Reset does not delete the key stored on this device.',
+  'Agrupa {0} notas de ese mes. Tócalo sostenido, o usa «Abrir el mes», para verlas por separado.':
+    'Groups {0} notes from that month. Long-press it, or use "Open the month", to see them separately.',
+  'Abrir el mes': 'Open the month',
+  'Agrupar la entrada por mes': 'Group the input layer by month',
+  'No agrupar la entrada por mes': "Don't group the input layer by month",
+  'Volver a cerrar los meses': 'Close the months again',
+  '▣ {0} mes(es) abierto(s)': '▣ {0} month(s) open',
+  'Agrupar la primera capa por mes': 'Group the first layer by month',
+  'La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.':
+    'The input layer grows by one note a day. From this many dated notes on, they group by month, and each month opens with a long press. 0 = never group.',
   // panel: títulos de los grupos de conexiones
   'Contiene · {0}': 'Contains · {0}',
   'notas de {0} que cuelgan de este tema': 'notes in {0} that hang from this topic',
@@ -355,6 +365,7 @@ const AJUSTES_BASE = {
   seccionMotivos: 'Conexiones',
   configurado: false,
   maxPorCapa: 150,
+  agruparMesesDesde: 24,   // 0 = nunca agrupar la primera capa por mes
 };
 // Las llaves viven en el localStorage del vault (por dispositivo): NO viajan por Sync ni por git.
 const CLAVE_IA = (proveedor) => `mapa-neuronal-key-${proveedor}`;
@@ -366,6 +377,16 @@ const PROVEEDORES = {
 };
 const RAW = /raw\/(articles\/[\w\-.]+\.(?:md|pdf)|daily\/\d{4}-\d{2}-\d{2})/g;
 const MOTIVO = /^- \[\[([^\]|#]+)\]\]\s+—\s+(.+)$/gm;
+// La primera capa crece un nodo por día: en un año son 365 puntos en fila. Las notas
+// fechadas se agrupan por mes, y el mes se abre con un toque sostenido.
+const FECHA = /(\d{4})-(\d{2})(?:-\d{2})?/;
+const mesDe = (...textos) => { for (const t of textos) { const m = FECHA.exec(String(t || '')); if (m) return `${m[1]}-${m[2]}`; } return null; };
+const etiquetaMes = (mes) => {
+  const [a, m] = mes.split('-');
+  const d = new Date(Number(a), Number(m) - 1, 1);
+  try { return d.toLocaleDateString(enEspanol() ? 'es' : 'en', { month: 'short', year: 'numeric' }).replace('.', ''); }
+  catch { return mes; }
+};
 const rgba = (h, a) => { const v = parseInt(String(h).replace('#', ''), 16) || 0xC9D1FF; return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${a})`; };
 // Fecha LOCAL, no UTC: en Chile, después de las 21:00 toISOString() ya es el día siguiente (lección del 01.09).
 const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -438,7 +459,7 @@ async function construir(app, s) {
     if (tema && !cfg.temas[tema]) cfg.temas[tema] = [tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
     nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: String(fm.title || f.basename).slice(0, 90), tema,
       propio: !!tema, updated: fm.updated ? String(fm.updated) : null, resumenAprobado: fm.resumen ? String(fm.resumen) : null,
-      enlaces: enlacesDe(fm, s) };
+      enlaces: enlacesDe(fm, s), mes: capa === 0 ? mesDe(f.basename, fm.title, fm.date, f.path) : null };
     porRuta[f.path] = f.path;
   }
   const resueltos = app.metadataCache.resolvedLinks, sinMotivoPorNota = {}, frases = {};
@@ -572,7 +593,7 @@ class VistaMapa extends ItemView {
     this.vista = { x: 0, y: 0, k: 1 }; this.foco = null; this.sobre = null; this.solo = null; this.filtro = '';
     this.todas = false; this.conEnlace = false; this.salud = false; this.reciente = 0;
     this.camino = null; this.eligiendo = null;
-    this.colapsados = new Set(); this.forzados = new Set(); this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
+    this.colapsados = new Set(); this.forzados = new Set(); this.mesesAbiertos = new Set(); this.forzarMeses = null; this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
     this.punteros = new Map(); this.D = { nodos: [], aristas: [], capas: [], temas: {} };
     this.N = []; this.E = [];
   }
@@ -720,9 +741,18 @@ class VistaMapa extends ItemView {
       if (!virtuales[t]) virtuales[t] = { id: 'tema:' + t, capa: ultima, titulo: this.D.temas[t][0], tema: t, propio: true, virtual: true, ruta: '', grado: 0, sinMotivo: 0 };
       return virtuales[t].id;
     };
+    const fechadas = this.D.nodos.filter((n) => n.capa === 0 && n.mes).length;
+    const umbral = Number(this.plugin.ajustes.agruparMesesDesde ?? 24);
+    this.agrupaMeses = this.forzarMeses === null ? umbral > 0 && fechadas >= umbral : !!this.forzarMeses;
+    const mesDeNodo = (mes) => {
+      const id = 'mes:' + mes;
+      if (!virtuales[id]) virtuales[id] = { id, capa: 0, titulo: etiquetaMes(mes), mes, esMes: true, tema: null, propio: false, virtual: true, ruta: '', grado: 0, sinMotivo: 0 };
+      return id;
+    };
     const N = [];
     for (const n of this.D.nodos) {
       if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
+      else if (this.agrupaMeses && n.capa === 0 && n.mes && !this.mesesAbiertos.has(n.mes)) { this.rep[n.id] = mesDeNodo(n.mes); continue; }
       else this.rep[n.id] = n.id;
       N.push(n);
     }
@@ -749,7 +779,11 @@ class VistaMapa extends ItemView {
     N.forEach((n) => { if (n.agrupados || n.virtual) n.gradoEf = this.ady[n.id].length; });
     const orden = Object.fromEntries(Object.keys(this.D.temas).map((t, i) => [t, i]));
     const posBase = new Map(this.D.nodos.map((x, i) => [x, i]));
-    this.N = N.sort((p, q) => p.capa - q.capa || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99) || (posBase.get(p) ?? 0) - (posBase.get(q) ?? 0));
+    this.N = N.sort((p, q) => p.capa - q.capa
+      || (q.esMes ? 1 : 0) - (p.esMes ? 1 : 0)                       // las cápsulas de mes, primero
+      || (p.esMes && q.esMes ? p.mes.localeCompare(q.mes) : 0)       // y entre ellas, en orden de tiempo
+      || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99)
+      || (posBase.get(p) ?? 0) - (posBase.get(q) ?? 0));
     // Revelado progresivo: cada capa muestra sus notas más conectadas; el resto se trae buscando o tocando.
     const max = Math.max(10, Number(this.plugin.ajustes.maxPorCapa) || 150);
     this.ocultas = {};
@@ -809,6 +843,7 @@ class VistaMapa extends ItemView {
     const t = [];
     if (this.radial) t.push(this.foco ? T('◎ radial') : T('◎ radial: toca una nota'));
     if (this.colapsados.size) t.push(T('◉ {0} tema(s) colapsado(s)', this.colapsados.size));
+    if (this.mesesAbiertos.size) t.push(T('▣ {0} mes(es) abierto(s)', this.mesesAbiertos.size));
     if (this.vacios) t.push(T('⌁ vacíos'));
     if (this.salud) t.push(T('❤︎ salud'));
     if (this.reciente) t.push(T('◷ últimos {0} días', this.reciente));
@@ -816,6 +851,11 @@ class VistaMapa extends ItemView {
     if (this.todas) t.push(T('todas las conexiones'));
     if (this.eligiendo) t.push(this.eligiendo.desde ? T('→ toca la nota de destino') : T('→ toca la nota de origen'));
     this.estado.setText(t.join(' · '));
+  }
+  alternarMes(mes) {
+    this.mesesAbiertos.has(mes) ? this.mesesAbiertos.delete(mes) : this.mesesAbiertos.add(mes);
+    this.camino = null; this.sugerencia = null; this.foco = null; this.abrirPanel(null);
+    this.rehacer(); this.pintarEstado();
   }
   alternarColapso(t) {
     this.colapsados.has(t) ? this.colapsados.delete(t) : this.colapsados.add(t);
@@ -860,6 +900,13 @@ class VistaMapa extends ItemView {
       if (!this.D.nodos.some((n) => n.tema === id)) continue;
       m.addItem((i) => i.setTitle(T('{0} {1}', this.colapsados.has(id) ? T('Expandir') : T('Colapsar'), nombre)).setIcon(this.colapsados.has(id) ? 'maximize-2' : 'minimize-2').onClick(() => this.alternarColapso(id)));
     }
+    if (this.agrupaMeses || this.mesesAbiertos.size) m.addItem((i) => i.setTitle(this.agrupaMeses ? T('No agrupar la entrada por mes') : T('Agrupar la entrada por mes')).setIcon('calendar-days').onClick(() => {
+      this.forzarMeses = !this.agrupaMeses; this.mesesAbiertos.clear(); this.foco = null; this.abrirPanel(null);
+      this.rehacer(); this.pintarEstado();
+    }));
+    if (this.mesesAbiertos.size) m.addItem((i) => i.setTitle(T('Volver a cerrar los meses')).setIcon('calendar-minus').onClick(() => {
+      this.mesesAbiertos.clear(); this.rehacer(); this.pintarEstado();
+    }));
     if (this.colapsados.size) m.addItem((i) => i.setTitle(T('Expandir todos')).setIcon('expand').onClick(() => { this.colapsados.clear(); this.rehacer(); this.pintarChips(); this.pintarEstado(); }));
     m.addSeparator();
     for (const d of [0, 7, 30]) m.addItem((i) => i.setTitle(d ? T('Actualizado en {0} días', d) : T('Toda la actividad')).setChecked(this.reciente === d).setIcon('clock').onClick(() => { this.reciente = d; this.pintarEstado(); this.pedir(); }));
@@ -894,7 +941,9 @@ class VistaMapa extends ItemView {
     const margen = this.angosto() ? 70 : Math.max(120, this.W * 0.1), paso = (this.anchoLogico - reserva - 2 * margen) / (n - 1);
     this.capas = this.D.capas.map((c, i) => {
       const col = this.N.filter((x) => x.capa === i && !x.oculto), alto = Hl - arriba - abajo;
-      const gap = Math.min(alto / Math.max(col.length, 1), this.angosto() ? 46 : 28), y0 = arriba + (alto - gap * (col.length - 1)) / 2;
+      const minimo = col.some((x) => x.esMes) ? 34 : 0;            // una cápsula mide más que un punto
+      const gap = Math.max(minimo, Math.min(alto / Math.max(col.length, 1), this.angosto() ? 46 : 28));
+      const y0 = arriba + (alto - gap * (col.length - 1)) / 2;
       col.forEach((x, j) => { x.x = margen + i * paso; x.y = y0 + j * gap; });
       return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + gap * Math.max(col.length - 1, 0) + 16, def: c };
     });
@@ -992,6 +1041,10 @@ class VistaMapa extends ItemView {
     ctx.save(); ctx.translate(vista.x, vista.y); ctx.scale(vista.k, vista.k);
     if (!this.familia) this.familia = getComputedStyle(this.contentEl).getPropertyValue('--font-monospace').trim() || 'ui-monospace, Menlo, monospace';
     const sk = Math.sqrt(vista.k), f = (peso, tam) => `${peso} ${tam / sk}px ${this.familia}`;
+    // Las cápsulas de mes se miden antes de dibujar los enlaces: una línea que sale del centro
+    // atraviesa la etiqueta y le tacha la cuenta. Sale del borde.
+    ctx.font = f(600, 11.5);
+    for (const n of this.N) if (n.esMes) n.ancho = ctx.measureText(`${n.titulo} · ${n.agrupados}`).width + 18 / vista.k;
     const color = (t) => (this.D.temas[t] ? this.D.temas[t][1] : '#C9D1FF');
     const radial = !!this.dist, ultima = this.D.capas.length - 1;
     const enCamino = this.camino ? new Set(this.camino) : null;
@@ -1026,9 +1079,12 @@ class VistaMapa extends ItemView {
       ctx.beginPath(); ctx.moveTo(A.x, A.y);
       if (radial) { const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, c = this.porId[this.foco]; ctx.quadraticCurveTo(mx + (c.x - mx) * 0.25, my + (c.y - my) * 0.25, B.x, B.y); }
       else {
-        const L = A.x <= B.x ? A : B, R = L === A ? B : A; ctx.moveTo(L.x, L.y);
-        if (L.capa === R.capa) { const dx = 26 + Math.abs(R.y - L.y) * 0.12; ctx.bezierCurveTo(L.x + dx, L.y, R.x + dx, R.y, R.x, R.y); }
-        else { const mx = (L.x + R.x) / 2; ctx.bezierCurveTo(mx, L.y, mx, R.y, R.x, R.y); }
+        const L = A.x <= B.x ? A : B, R = L === A ? B : A;
+        // Una cápsula de mes es ancha: la línea arranca de su borde, no de su centro.
+        const lx = L.x + (L.ancho ? L.ancho / 2 : 0), rx = R.x - (R.ancho ? R.ancho / 2 : 0);
+        ctx.moveTo(lx, L.y);
+        if (L.capa === R.capa) { const dx = 26 + Math.abs(R.y - L.y) * 0.12; ctx.bezierCurveTo(lx + dx, L.y, rx + dx, R.y, rx, R.y); }
+        else { const mx = (lx + rx) / 2; ctx.bezierCurveTo(mx, L.y, mx, R.y, rx, R.y); }
       }
       ctx.stroke(); if (discontinua) ctx.setLineDash([]);
     };
@@ -1083,6 +1139,22 @@ class VistaMapa extends ItemView {
       if (!this.visible(n)) continue;
       const enSug = this.sugerencia && (this.rep[this.sugerencia[0]] === n.id || this.rep[this.sugerencia[1]] === n.id);
       const activo = enCamino ? enCamino.has(n.id) : this.sugerencia ? enSug : (!nivel || n.id in nivel) && this.activo(n);
+      if (n.esMes) { // un mes se dibuja como cápsula con su nombre: un punto grande no dice «mes»
+        ctx.font = f(600, 11.5);
+        const etq = `${n.titulo} · ${n.agrupados}`;
+        const w = ctx.measureText(etq).width, alto = 21 / sk, pad = 9 / vista.k, rr = alto / 2;
+        const bx = n.x - (w + pad * 2) / 2, by = n.y - alto / 2;
+        ctx.fillStyle = rgba('#C9D1FF', activo ? 0.13 : 0.05);
+        ctx.strokeStyle = rgba('#C9D1FF', activo ? 0.52 : 0.16);
+        ctx.lineWidth = 1.2 / vista.k;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, by, w + pad * 2, alto, rr); else ctx.rect(bx, by, w + pad * 2, alto);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = activo ? '#FFFFFF' : 'rgba(230,234,255,.42)';
+        ctx.fillText(etq, bx + pad, n.y + 4 / sk);
+        cajas.push({ x: bx - 3 / vista.k, y: by - 3 / vista.k, w: w + pad * 2 + 6 / vista.k, h: alto + 6 / vista.k });
+        continue; // ni punto ni rótulo aparte: la cápsula ya los reemplaza
+      }
       const base = n.capa === ultima || n.agrupados ? 6.5 + Math.min(8, Math.sqrt(n.agrupados || 0) * 1.6) : 1.8 + Math.min(4.2, Math.sqrt(n.grado) * 0.6);
       const r = (radial && n.id === this.foco ? 9 : base) / sk;
       ctx.fillStyle = rgba(color(n.tema), activo ? 1 : 0.16); ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
@@ -1101,7 +1173,7 @@ class VistaMapa extends ItemView {
     const aire = 3 / vista.k;
     for (const n of rotulos) {
       const fijo = esFijo(n);
-      let texto = (n.capa === ultima || n.agrupados) && this.D.temas[n.tema] ? this.D.temas[n.tema][0] : n.titulo;
+      let texto = !n.esMes && (n.capa === ultima || n.agrupados) && this.D.temas[n.tema] ? this.D.temas[n.tema][0] : n.titulo;
       if (n.agrupados) texto += ` · ${n.agrupados + 1} notas`;
       const fuerte = fijo || n.capa === ultima, tam = n.capa === ultima || n.agrupados ? 13 : 11.5;
       ctx.font = f(fuerte ? 600 : 500, tam);
@@ -1150,6 +1222,7 @@ class VistaMapa extends ItemView {
       if (!t || t.movio || e.type === 'pointercancel') return;
       const [x, y] = local(e), n = this.nodoEn(x, y);
       if (this.eligiendo) return this.elegirCamino(n);
+      if (n && (Date.now() - t.t > 550) && n.esMes) return this.alternarMes(n.mes);
       if (n && (Date.now() - t.t > 550) && n.tema && (n.agrupados || n.capa === this.D.capas.length - 1)) return this.alternarColapso(n.tema);
       this.camino = null; this.sugerencia = null;
       if (!n) { this.foco = null; this.abrirPanel(this.vacios ? 'vacios' : null); if (this.radial) { this.medir(); this.pintarEstado(); } this.pedir(); return; }
@@ -1186,7 +1259,8 @@ class VistaMapa extends ItemView {
     const temas = [...new Set(vec.filter((v) => v.tema && v.tema !== n.tema && !v.fuente).map((v) => v.tema))];
     const grados = this.N.filter((x) => !x.fuente && x.capa !== ultima).map((x) => this.ady[x.id].length).sort((x, y) => y - x);
     const umbral = grados[Math.floor(grados.length * 0.1)] || Infinity, out = [];
-    if (n.agrupados) out.push(T('Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.', n.agrupados + 1));
+    if (n.esMes) out.push(T('Agrupa {0} notas de ese mes. Tócalo sostenido, o usa «Abrir el mes», para verlas por separado.', n.agrupados));
+    else if (n.agrupados) out.push(T('Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.', n.agrupados + 1));
     else if (n.capa === ultima) out.push(T('Página de síntesis: resume el tema y de ella cuelgan sus notas.'));
     else if (!vec.length) out.push(T('Aislada: ninguna nota la enlaza y ella no enlaza a ninguna.'));
     else {
@@ -1214,7 +1288,9 @@ class VistaMapa extends ItemView {
     const ojo = cab.createDiv('mn-ojo2');
     ojo.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': colorTema });
     ojo.createSpan({ text: n.agrupados ? `Supernodo · ${nombreTema}` : `${nombreTema} · ${capa[1]}` });
-    cab.createEl('h3', { text: n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
+    // Un mes se nombra por su mes; un tema colapsado, por su tema. Y el mes no suma uno:
+    // su nodo es virtual, no una nota más.
+    cab.createEl('h3', { text: n.esMes ? T('{0} · {1} notas', n.titulo, n.agrupados) : n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
     const meta = [];
     if (!n.virtual) meta.push(n.fuente ? 'fuente original' : n.ruta.split('/').slice(-2).join('/'));
     meta.push(`${vec.length} conexiones`);
@@ -1224,6 +1300,7 @@ class VistaMapa extends ItemView {
     if (!n.fuente && !n.virtual) this.boton(acciones, 'file-text', 'Abrir', () => this.abrirNota(n.ruta), true);
     if (!this.radial) this.boton(acciones, 'orbit', T('Radial'), () => { this.radial = true; this.foco = n.id; this.medir(); this.encuadrar(); this.pintarEstado(); });
     this.boton(acciones, 'route', T('Camino'), () => { this.eligiendo = { desde: n.id }; this.abrirPanel(null); new Notice(T('Toca la nota de destino')); this.pintarEstado(); this.pedir(); });
+    if (n.esMes) this.boton(acciones, 'calendar-days', T('Abrir el mes'), () => this.alternarMes(n.mes));
     if (n.tema && (n.agrupados || n.capa === ultima)) this.boton(acciones, this.colapsados.has(n.tema) ? 'maximize-2' : 'minimize-2', this.colapsados.has(n.tema) ? 'Expandir' : 'Colapsar', () => this.alternarColapso(n.tema));
     const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
     try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
@@ -1437,6 +1514,8 @@ class AjustesMapa extends PluginSettingTab {
       .addToggle((t) => t.setValue(p.ajustes.fuentes).onChange(async (v) => { p.ajustes.fuentes = v; await p.guardar(); }));
     new Setting(c).setName(T('Notas visibles por capa')).setDesc(T('En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.'))
       .addSlider((sl) => sl.setLimits(30, 600, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
+    new Setting(c).setName(T('Agrupar la primera capa por mes')).setDesc(T('La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.'))
+      .addSlider((sl) => sl.setLimits(0, 120, 4).setValue(Number(p.ajustes.agruparMesesDesde ?? 24)).setDynamicTooltip().onChange(async (v) => { p.ajustes.agruparMesesDesde = v; await p.guardar(); }));
     new Setting(c).setName(T('Seguir la nota activa')).setDesc(T('Al abrir una nota, el mapa la enfoca.'))
       .addToggle((t) => t.setValue(p.ajustes.seguirActiva).onChange(async (v) => { p.ajustes.seguirActiva = v; await p.guardar(); }));
     new Setting(c).setName(T('Animación')).setDesc(T('Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.'))
