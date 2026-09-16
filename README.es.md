@@ -72,17 +72,6 @@ se escriba una línea en tu nota. La versión interactiva del diagrama está en
 - **Vacíos.** Compara los enlaces que existen contra los que cabría esperar entre dos
   temas (vecinos comunes, densidad) y nombra los pares que deberían estar conectados y
   no lo están. En mi propio vault encontró dos temas con 0 enlaces donde se esperaban ~26.
-- **Aguanta un vault viejo.** La capa de entrada crece una nota por día: en un año son 365
-  puntos en fila. Las notas fechadas se pliegan en un acordeón —**años, después meses,
-  después días**— así que tres años de diario se leen como tres etiquetas. Un clic abre la
-  cápsula y otro la cierra: la cápsula del grupo abierto se queda en su lugar, sobre sus notas.
-
-  ![La capa de entrada agrupada en cápsulas de mes](docs/imagenes/06-meses.webp)
-
-- **Los recortes se agrupan por su origen.** La capa de entrada responde dos preguntas: *qué
-  escribí yo* (el tiempo) y *de dónde saqué esto* (el origen). Las notas con una propiedad de
-  fuente —el Web Clipper de Obsidian escribe `source`— se pliegan en cápsulas por dominio:
-  `github.com · 12`, `x.com · 8`. Un origen escrito a mano también sirve, agrupado por ese texto.
 
 - **Vista radial.** Centra una nota y mira su mundo en anillos: vecinos directos, luego
   los de ellos. La animación viaja hacia fuera, anillo por anillo.
