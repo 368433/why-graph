@@ -152,6 +152,19 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
     try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msg = e.message; }
     p.cierto(`error ${respuesta.status}: mensaje claro («${msg.slice(0, 40)}»)`, esperado.test(msg));
   }
+  // Un 5xx tiene que aconsejar según el proveedor: a quien usa Gemini no se le puede decir que
+  // revise si su servidor local está corriendo, ni hacerle creer que la culpa es de su config.
+  for (const [prov, debe, noDebe] of [['gemini', /down or overloaded/i, /Ollama/i], ['local', /Ollama/i, /not your setup/i]]) {
+    pl2.ajustes.proveedorIA = prov; pl2.ajustes.modeloIA = 'modelo-x';
+    app._ls[CLAVE_IA(prov)] = 'x';
+    global.__req = () => ({ status: 503, json: {} });
+    let msg = '(no lanzó)';
+    try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msg = e.message; }
+    p.cierto(`503 con ${prov}: el consejo corresponde al proveedor`, debe.test(msg));
+    p.cierto(`503 con ${prov}: no da el consejo del otro`, !noDebe.test(msg));
+  }
+  pl2.ajustes.proveedorIA = 'claude';
+
   app._ls = {};
   let msgSinLlave = '';
   try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msgSinLlave = e.message; }
