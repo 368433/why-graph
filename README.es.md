@@ -339,3 +339,8 @@ cantidad de notas y enlaces que muestra el encabezado del mapa.
 </a>
 
 Hecho por **Felipe Córdova** · Powered by [DBB Labs](https://dontbuybuild.cl) — *No compres. Construye.*
+
+Gratis, MIT, sin versión de pago. Si el mapa te mostró algo que no habías visto, un café se
+agradece — y si no te mostró nada, el plugin funciona exactamente igual.
+
+<a href="https://www.buymeacoffee.com/DbbLabs"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>

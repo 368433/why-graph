@@ -342,3 +342,8 @@ number of notes and links the map header shows.
 </a>
 
 Built by **Felipe Córdova** · Powered by [DBB Labs](https://dontbuybuild.cl) — *Don't buy. Build.*
+
+Free, MIT, no paid tier. If the map showed you something you had not seen, a coffee is welcome
+— and if it did not, the plugin still works exactly the same.
+
+<a href="https://www.buymeacoffee.com/DbbLabs"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="40"></a>
