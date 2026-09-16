@@ -33,11 +33,17 @@ It pays off when your vault has, or is moving towards:
   falls back to the actual sentence where the link appears — and the AI can propose the
   missing reason for you to approve.
 
-This plugin grew inside a vault built on the **LLM wiki** pattern (Andrej Karpathy's:
-immutable raw sources on one side, a curated wiki on the other, and a written contract
-between them). It does not require that pattern, and it names no folder of its own — but
-that is the shape it was designed against, and any vault with a deliberate structure
-(PARA, Zettelkasten with MOCs, a digital garden with topic hubs) gets the same benefit.
+This plugin grew inside a vault built on the **LLM wiki** pattern — Andrej Karpathy's
+[original design](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f):
+immutable raw sources on one side, a curated wiki the LLM maintains on the other, and a
+written contract between them. It does not require that pattern, and it names no folder of
+its own — but that is the shape it was designed against. Any vault with a deliberate
+structure (PARA, Zettelkasten with MOCs, a digital garden with topic hubs) gets the same
+benefit.
+
+If you run an LLM wiki, the map does something specific for you: the raw layer becomes the
+first column, the curated wiki the middle ones, and the syntheses the last — so you can see
+at a glance whether your sources are actually being distilled, or just piling up.
 
 If your vault is flat today, the map is still useful as a diagnosis: it shows you exactly
 how much of your thinking is sitting in one undifferentiated pile.
