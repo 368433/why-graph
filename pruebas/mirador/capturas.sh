@@ -24,10 +24,11 @@ tomar 03-camino "vista=camino&de=Hotel&a=Mapa"
 tomar 04-vacios "vista=vacios"
 tomar 05-radial "vista=radial&foco=Camila"
 
-# Una toma más, con el vault de cuatro meses de diario: es el caso que justifica las cápsulas.
-if [ -f vault-largo.json ]; then
-  node -e "const fs=require('fs');fs.writeFileSync('vault.js','window.__VAULT = '+fs.readFileSync('vault-largo.json','utf8')+';')"
-  tomar 06-meses ""
+# Una toma más con el vault de tres años: es el caso que justifica el acordeón del tiempo.
+# Se abre 2026 y dentro septiembre, para que se vean los tres niveles a la vez.
+if [ -f vault-anios.json ]; then
+  node -e "const fs=require('fs');fs.writeFileSync('vault.js','window.__VAULT = '+fs.readFileSync('vault-anios.json','utf8')+';')"
+  tomar 06-meses "abrir=2026,2026-09"
 fi
 
 python3 - <<'PY'

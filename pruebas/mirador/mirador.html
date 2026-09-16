@@ -177,6 +177,11 @@ window.exports = window.module.exports;
     const n = buscar(q.get('foco'));
     if (n) v.enfocar(n.id, true); else document.title = 'ERROR: no encuentro esa nota';
   }
+  // ?abrir=2026,2026-09 → abre esos años y meses del acordeón del tiempo
+  for (const clave of (q.get('abrir') || '').split(',').filter(Boolean)) {
+    const cap = v.N.find((x) => x.esMes && (x.anio === clave || x.mes === clave));
+    if (cap) v.alternarTiempo(cap);
+  }
   v.encuadrar(); v.dibujar();
   // segunda pasada: el panel cambia el ancho útil y el mapa se reencuadra
   await new Promise((r) => setTimeout(r, 120));

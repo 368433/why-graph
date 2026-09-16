@@ -73,9 +73,9 @@ se escriba una línea en tu nota. La versión interactiva del diagrama está en
   temas (vecinos comunes, densidad) y nombra los pares que deberían estar conectados y
   no lo están. En mi propio vault encontró dos temas con 0 enlaces donde se esperaban ~26.
 - **Aguanta un vault viejo.** La capa de entrada crece una nota por día: en un año son 365
-  puntos en fila. Las notas fechadas se agrupan en cápsulas de mes que se abren con un toque
-  sostenido, así un vault con cuatro meses de diario se lee como cuatro etiquetas y no como
-  108 puntos.
+  puntos en fila. Las notas fechadas se pliegan en un acordeón —**años, después meses,
+  después días**— así que tres años de diario se leen como tres etiquetas. Un clic abre la
+  cápsula y otro la cierra: la cápsula del grupo abierto se queda en su lugar, sobre sus notas.
 
   ![La capa de entrada agrupada en cápsulas de mes](docs/imagenes/06-meses.webp)
 
