@@ -73,17 +73,6 @@ open it in a browser.
 - **Gaps.** It compares the links that exist against the links you would expect between
   two topics (shared neighbours, density) and names the pairs that should be connected
   and are not. In my own vault it found two topics with 0 links where ~26 were expected.
-- **It survives a long vault.** The input layer grows by one note a day; after a year that
-  is 365 dots in a row. Dated notes fold into an accordion — **years, then months, then
-  days** — so three years of daily notes read as three labels. Click a capsule to open it,
-  click it again to close: the capsule of an open group stays in place, above its notes.
-
-  ![The input layer grouped into month capsules](docs/imagenes/06-meses.webp)
-
-- **Clippings group by where they came from.** The input layer answers two questions: *what
-  did I write* (time) and *where did I get this* (origin). Notes with a source property —
-  Obsidian Web Clipper writes `source` — fold into capsules per domain: `github.com · 12`,
-  `x.com · 8`. A plain-text source works too, grouped by that text.
 
 - **Radial view.** Centre on one note and see its world in rings: direct neighbours,
   then theirs. The animation travels outward ring by ring.

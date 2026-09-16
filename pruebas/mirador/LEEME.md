@@ -18,9 +18,6 @@ cd pruebas/mirador && ./capturas.sh
 
 Deja los `.webp` en `docs/imagenes/`. Necesita Google Chrome instalado.
 
-`vault.json` es el vault de ejemplo chico (43 notas). `vault-largo.json` tiene cuatro meses de
-diario (137 notas) y sirve para ver las cápsulas de mes, que solo aparecen desde 24 notas fechadas.
-
 ## Qué se puede pedir por la URL
 
 | URL | Qué muestra |

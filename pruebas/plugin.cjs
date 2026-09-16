@@ -157,132 +157,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msgSinLlave = e.message; }
   p.cierto('sin llave avisa antes de salir a la red', /key is missing/i.test(msgSinLlave));
 
-  // ── 8. La primera capa se agrupa por mes: 90 días no pueden ser 90 puntos en fila ─────────────
-  const diario = {};
-  for (const mes of ['07', '08', '09']) {
-    for (let d = 1; d <= 30; d++) {
-      const dia = `2026-${mes}-${String(d).padStart(2, '0')}`;
-      diario[`diario/${dia}.md`] = `---\ntema: tienda\nupdated: ${dia}\n---\n\nDía ${d}. Trabajo en [[proyecto-tostador]].\n`;
-    }
-  }
-  const vaultLargo = vaultSimulado(Object.assign({}, NOTAS, diario));
-  const ajLargo = Object.assign({}, AJUSTES);
-  const D2 = await construir(vaultLargo.app, ajLargo);
-  p.igual('las notas fechadas conocen su mes', D2.nodos.filter((n) => n.mes === '2026-08').length, 30);
-  p.igual('una nota sin fecha no tiene mes', (D2.nodos.find((n) => n.id.includes('proyecto-tostador')) || {}).mes, null);
-
-  const v2 = new VistaMapa({}, { ajustes: ajLargo, tieneIA: () => false, app: vaultLargo.app });
-  v2.app = vaultLargo.app; v2.contentEl = el();
-  v2.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-  v2.ctx = v2.lienzo.getContext(); v2.marca = el(); v2.chips = el(); v2.estado = el(); v2.panel = el(); v2.guia = el();
-  v2.D = D2; v2.plugin.construir = null;
-  await v2.recargar();
-  const capa0 = () => v2.N.filter((n) => n.capa === 0);
-  const capsulas = () => capa0().filter((n) => n.esMes);
-  p.cierto('agrupa sola cuando hay muchas notas fechadas', v2.agrupaMeses);
-  const capsula = (mes) => capsulas().find((n) => n.mes === mes);
-  // cuatro: los tres meses sintéticos más el enero que ya traía el vault de prueba
-  p.igual('un mes, una cápsula', capsulas().length, 4);
-  p.igual('y ninguna nota de diario suelta', capa0().filter((n) => n.mes && !n.esMes).length, 0);
-  p.igual('la cápsula cuenta sus notas sin sumarse a sí misma', capsula('2026-08').agrupados, 30);
-  p.cierto('la cápsula se etiqueta con el mes, no con una ruta', /2026/.test(capsula('2026-08').titulo));
-  p.cierto('los enlaces del mes se agrupan en superenlaces', v2.E.some((e) => e.superE && (e.a.startsWith('mes:') || e.b.startsWith('mes:'))));
-  v2.dibujar();
-  p.cierto('dibuja las cápsulas sin caerse', v2.ctx.llamadas > 50);
-
-  v2.alternarMes('2026-08');
-  p.igual('al abrir un mes, sus 30 notas aparecen', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 30);
-  p.cierto('la cápsula del mes abierto NO desaparece: es lo que se toca para cerrarlo', !!capsula('2026-08') && capsula('2026-08').abierta === true);
-  p.igual('y las otras tres siguen cerradas', capsulas().filter((n) => !n.abierta).length, 3);
-  p.cierto('la cápsula queda justo arriba de sus notas', (() => {
-    const c0 = capa0(), i = c0.findIndex((n) => n.esMes && n.mes === '2026-08');
-    return i >= 0 && c0[i + 1] && c0[i + 1].mes === '2026-08' && !c0[i + 1].esMes;
-  })());
-  p.igual('la cápsula abierta sigue diciendo cuántas notas agrupa', capsula('2026-08').total, 30);
-  // Dos cápsulas seguidas NO se pueden pisar. Cuando compartían el paso de la columna, con la
-  // columna llena el paso bajaba de los 21 px que mide una cápsula y quedaban una sobre otra:
-  // era imposible apuntarle a la de abajo, y la abierta tapaba su primera nota.
-  v2.dibujar();
-  p.cierto('ninguna cápsula se pisa con la siguiente', (() => {
-    const ys = capsulas().map((n) => n.y).sort((a, b) => a - b);
-    return ys.every((y, i) => i === 0 || y - ys[i - 1] >= 21);
-  })());
-  p.cierto('una cápsula no se pisa con la nota que sigue', (() => {
-    const c = capsula('2026-08'), sig = capa0().filter((n) => n.y > c.y).sort((a, b) => a.y - b.y)[0];
-    return !sig || sig.y - c.y >= 12;
-  })());
-  // El área de clic es el rectángulo dibujado, no un radio alrededor del centro: tocar el texto
-  // de una cápsula ancha no activaba nada, o activaba la nota vecina.
-  p.cierto('se puede tocar la cápsula por su texto, no solo por el centro', (() => {
-    const c = capsula('2026-08'); if (!c || !c.caja) return false;
-    const x = c.caja.x + 4, y = c.caja.y + c.caja.h / 2;
-    return Math.abs(x - c.x) > 14 && v2.nodoEn(x, y) === c;
-  })());
-
-  // un clic en la cápsula la cierra: es el gesto que cualquiera prueba primero
-  v2.enfocar('mes:2026-08', false);
-  p.igual('un clic en la cápsula abierta la cierra', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 0);
-  p.igual('y vuelven a ser cuatro cerradas', capsulas().filter((n) => !n.abierta).length, 4);
-  v2.enfocar('mes:2026-08', false);
-  p.igual('y un clic la vuelve a abrir', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 30);
-  v2.alternarMes('2026-08');
-
-  ajLargo.agruparMesesDesde = 0;
-  await v2.recargar();
-  p.cierto('con el ajuste en 0 no agrupa nunca', !v2.agrupaMeses && capsulas().length === 0);
-  ajLargo.agruparMesesDesde = 24;
-  await v2.recargar();
-  p.cierto('el vault chico de la demo no se agrupa', (await (async () => {
-    const chico = new VistaMapa({}, { ajustes: AJUSTES, tieneIA: () => false, app });
-    chico.app = app; chico.contentEl = el();
-    chico.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-    chico.ctx = chico.lienzo.getContext(); chico.marca = el(); chico.chips = el(); chico.estado = el(); chico.panel = el(); chico.guia = el();
-    chico.D = D; chico.plugin.construir = null; await chico.recargar();
-    return !chico.agrupaMeses;
-  })()));
-
-  // ── 9. La entrada también se agrupa por ORIGEN: de dónde vino cada recorte ───────────────────
-  const recortes = {};
-  const fuentes = [
-    ['github.com/obsidianmd/obsidian-api', 3], ['https://x.com/karpathy/status/123', 2],
-    ['https://www.perfectdailygrind.com/nota', 2], ['Skool — Imperio Agéntico', 2],
-  ];
-  let i = 0;
-  for (const [origen, cuantos] of fuentes) {
-    for (let k = 0; k < cuantos; k++) {
-      const url = origen.startsWith('http') ? origen : origen.startsWith('github') ? 'https://' + origen : origen;
-      recortes[`Fuentes/clip-${++i}.md`] = `---\nsource: "${url}"\n---\n\nRecorte ${i}. Habla de [[proyecto-tostador]].\n`;
-    }
-  }
-  const vClip = vaultSimulado(Object.assign({}, NOTAS, recortes));
-  const ajClip = Object.assign({}, AJUSTES, { carpetas: AJUSTES.carpetas + '\nFuentes = 0' });
-  const D3 = await construir(vClip.app, ajClip);
-  const porOrigen = (o) => D3.nodos.filter((n) => n.origen === o).length;
-  p.igual('de una URL se queda el dominio, sin www', porOrigen('perfectdailygrind.com'), 2);
-  p.igual('x.com se agrupa aparte', porOrigen('x.com'), 2);
-  p.igual('y un origen escrito a mano vale igual', porOrigen('Skool — Imperio Agéntico'), 2);
-
-  const v3 = new VistaMapa({}, { ajustes: ajClip, tieneIA: () => false, app: vClip.app });
-  v3.app = vClip.app; v3.contentEl = el();
-  v3.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
-  v3.ctx = v3.lienzo.getContext(); v3.marca = el(); v3.chips = el(); v3.estado = el(); v3.panel = el(); v3.guia = el();
-  v3.D = D3; v3.plugin.construir = null;
-  await v3.recargar();
-  const caps3 = () => v3.N.filter((n) => n.capa === 0 && n.esMes);
-  p.cierto('con varios recortes de varios orígenes, agrupa', v3.agrupaOrigen);
-  p.igual('una cápsula por origen', caps3().filter((n) => n.grupo === 'origen').length, 4);
-  p.cierto('el dominio es la etiqueta', caps3().some((n) => n.titulo === 'github.com'));
-  const gh = caps3().find((n) => n.titulo === 'github.com');
-  v3.alternarTiempo(gh);
-  p.igual('al abrir un origen aparecen sus recortes', v3.N.filter((n) => n.origen === 'github.com' && !n.esMes).length, 3);
-  p.cierto('y su cápsula sigue ahí para cerrarlo', !!caps3().find((n) => n.clave === 'github.com' && n.abierta));
-  v3.alternarTiempo(caps3().find((n) => n.clave === 'github.com'));
-  p.igual('se cierra de nuevo', v3.N.filter((n) => n.origen === 'github.com' && !n.esMes).length, 0);
-  ajClip.propiedadOrigen = '';
-  const D4 = await construir(vClip.app, ajClip);
-  p.igual('sin propiedad configurada, ninguna nota tiene origen', D4.nodos.filter((n) => n.origen).length, 0);
-
-  // ── 10. Las herramientas también cuelgan del «···» de la pestaña ──────────────────────────────
+  // ── 8. Las herramientas también cuelgan del «···» de la pestaña ──────────────────────────────
   const { Menu } = require('./simulado.cjs').obsidian || {};
   const menuFalso = { items: [], addItem(f) { const c = { titulo: '', setTitle(v) { c.titulo = v; return c; }, setIcon: () => c, setChecked: () => c, onClick: () => c }; this.items.push(c); f(c); return this; }, addSeparator() { this.items.push('---'); return this; } };
   v.onPaneMenu(menuFalso, 'more-options');
@@ -293,7 +168,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   v.onPaneMenu(otroMenu, 'tab-header');
   p.igual('en la cabecera de la pestaña no se mete', otroMenu.items.length, 0);
 
-  // ── 11. El botón «Probar la conexión»: una llamada mínima, sin notas ──────────────────────────
+  // ── 9. El botón «Probar la conexión»: una llamada mínima, sin notas ──────────────────────────
   app._ls = {}; app._ls[CLAVE_IA('claude')] = 'llave-de-prueba';
   pl2.ajustes.proveedorIA = 'claude'; pl2.ajustes.modeloIA = 'claude-opus-5';
   let cuerpoPrueba = null;
@@ -304,7 +179,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   p.cierto('la prueba no manda ninguna nota', !/tostadora|ana-soto|Encargada/i.test(cuerpoPrueba));
   p.cierto('la prueba es corta (menos de 400 caracteres)', cuerpoPrueba.length < 400);
 
-  // ── 12. El asistente de capas propone algo sensato ────────────────────────────────────────────
+  // ── 10. El asistente de capas propone algo sensato ────────────────────────────────────────────
   const filas = detectarCarpetas(app);
   const capaDe = (c) => (filas.find((f) => f.carpeta === c) || {}).capa;
   p.igual('manda el diario a la primera capa', capaDe('diario'), 0);

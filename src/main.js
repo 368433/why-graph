@@ -236,20 +236,6 @@ const EN = {
   'Restablecer': 'Reset',
   'Vuelve a los valores por defecto.': 'Back to the default values.',
   'Restablecer no borra la llave guardada en este dispositivo.': 'Reset does not delete the key stored on this device.',
-  'Agrupa {0} notas de ese mes. Tócala para abrirla, y otra vez para cerrarla.':
-    'Groups {0} notes from that month. Tap to open it, tap again to close it.',
-  'Abrir el mes': 'Open the month',
-  'Agrupar la entrada por mes': 'Group the input layer by month',
-  'No agrupar la entrada por mes': "Don't group the input layer by month",
-  '▣ {0} año(s) abierto(s)': '▣ {0} year(s) open',
-  '▾ {0} mes(es) abierto(s) · toca la cápsula ▾ para cerrar': '▾ {0} month(s) open · tap the ▾ capsule to close',
-  'Volver a cerrar el tiempo': 'Close the timeline again',
-  'Agrupar la primera capa por mes': 'Group the first layer by month',
-  'La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.':
-    'The input layer grows by one note a day. From this many dated notes on, they group by month, and each month opens with a long press. 0 = never group.',
-  'Propiedad de origen': 'Source property',
-  'Propiedad del frontmatter que dice de dónde vino una nota. El Web Clipper de Obsidian escribe «source». Si es una URL se agrupa por dominio; si es un texto, por ese texto. Vacío = no se agrupa por origen.':
-    'The frontmatter property that says where a note came from. Obsidian Web Clipper writes "source". A URL groups by domain; plain text groups by that text. Empty = no grouping by origin.',
   // panel: títulos de los grupos de conexiones
   'Contiene · {0}': 'Contains · {0}',
   'notas de {0} que cuelgan de este tema': 'notes in {0} that hang from this topic',
@@ -349,10 +335,6 @@ const MARCA = 'DBB Labs';
 // ficha del directorio y las instalaciones. Los nombres de archivo también se dejan quietos.
 const NOMBRE = 'Why Graph';
 const PALETA = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635'];
-// El acento de los controles (las cápsulas del acordeón). Va aparte de la paleta de temas: un
-// control no puede teñirse del color de un tema, o se lee como si fuera un nodo más.
-const ACENTO = '#1FC8B4';
-const TENUE = 'rgba(230,234,255,.45)';   // subtítulos y estado: informativo, nunca rojo de alarma
 const AJUSTES_BASE = {
   capas: 'Entrada | notas con fecha\nNotas | el resto del vault',
   carpetas: '',
@@ -373,8 +355,6 @@ const AJUSTES_BASE = {
   seccionMotivos: 'Conexiones',
   configurado: false,
   maxPorCapa: 150,
-  agruparMesesDesde: 24,   // 0 = nunca agrupar la primera capa (ni por mes ni por origen)
-  propiedadOrigen: 'source',
 };
 // Las llaves viven en el localStorage del vault (por dispositivo): NO viajan por Sync ni por git.
 const CLAVE_IA = (proveedor) => `mapa-neuronal-key-${proveedor}`;
@@ -386,35 +366,6 @@ const PROVEEDORES = {
 };
 const RAW = /raw\/(articles\/[\w\-.]+\.(?:md|pdf)|daily\/\d{4}-\d{2}-\d{2})/g;
 const MOTIVO = /^- \[\[([^\]|#]+)\]\]\s+—\s+(.+)$/gm;
-// La primera capa crece un nodo por día: en un año son 365 puntos en fila. Las notas
-// fechadas se agrupan por mes, y el mes se abre con un toque sostenido.
-const FECHA = /(\d{4})-(\d{2})(?:-\d{2})?/;
-const mesDe = (...textos) => { for (const t of textos) { const m = FECHA.exec(String(t || '')); if (m) return `${m[1]}-${m[2]}`; } return null; };
-// De dónde vino una nota. El Web Clipper de Obsidian escribe «source» con la URL; mucha
-// gente usa su propia propiedad y a veces no es una URL sino un texto («Skool — Imperio»).
-// Las dos sirven: de una URL se toma el dominio, de un texto se toma el texto.
-function origenDe(fm, s) {
-  const prop = String(s.propiedadOrigen || '').trim();
-  if (!prop) return null;
-  const bruto = String([].concat(fm[prop] || [])[0] || '').trim();
-  if (!bruto) return null;
-  const url = bruto.match(/^https?:\/\/([^/\s]+)/i);
-  if (url) return url[1].replace(/^www\./i, '').toLowerCase();
-  return bruto.slice(0, 28);
-}
-// La etiqueta de una cápsula del acordeón. El triángulo va PRIMERO y siempre está: es lo que
-// dice «esto se abre y se cierra». Se calcula en un solo lugar para que medir y dibujar no se
-// desfasen (si se desfasan, los enlaces tachan la cuenta).
-const etiquetaCapsula = (n) => {
-  const t = String(n.titulo);
-  return `${n.abierta ? '▾' : '▸'}  ${t.length > 20 ? t.slice(0, 19) + '…' : t} · ${n.total ?? n.agrupados}`;
-};
-const etiquetaMes = (mes) => {
-  const [a, m] = mes.split('-');
-  const d = new Date(Number(a), Number(m) - 1, 1);
-  try { return d.toLocaleDateString(enEspanol() ? 'es' : 'en', { month: 'short', year: 'numeric' }).replace('.', ''); }
-  catch { return mes; }
-};
 const rgba = (h, a) => { const v = parseInt(String(h).replace('#', ''), 16) || 0xC9D1FF; return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${a})`; };
 // Fecha LOCAL, no UTC: en Chile, después de las 21:00 toISOString() ya es el día siguiente (lección del 01.09).
 const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -487,8 +438,7 @@ async function construir(app, s) {
     if (tema && !cfg.temas[tema]) cfg.temas[tema] = [tema, PALETA[Object.keys(cfg.temas).length % PALETA.length]];
     nodos[f.path] = { id: f.path, capa, ruta: f.path, titulo: String(fm.title || f.basename).slice(0, 90), tema,
       propio: !!tema, updated: fm.updated ? String(fm.updated) : null, resumenAprobado: fm.resumen ? String(fm.resumen) : null,
-      enlaces: enlacesDe(fm, s), mes: capa === 0 ? mesDe(f.basename, fm.title, fm.date, f.path) : null,
-      origen: capa === 0 ? origenDe(fm, s) : null };
+      enlaces: enlacesDe(fm, s) };
     porRuta[f.path] = f.path;
   }
   const resueltos = app.metadataCache.resolvedLinks, sinMotivoPorNota = {}, frases = {};
@@ -622,7 +572,7 @@ class VistaMapa extends ItemView {
     this.vista = { x: 0, y: 0, k: 1 }; this.foco = null; this.sobre = null; this.solo = null; this.filtro = '';
     this.todas = false; this.conEnlace = false; this.salud = false; this.reciente = 0;
     this.camino = null; this.eligiendo = null;
-    this.colapsados = new Set(); this.forzados = new Set(); this.mesesAbiertos = new Set(); this.aniosAbiertos = new Set(); this.origenesAbiertos = new Set(); this.forzarMeses = null; this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
+    this.colapsados = new Set(); this.forzados = new Set(); this.radial = false; this.vacios = false; this.listaVacios = []; this.sugerencia = null;
     this.punteros = new Map(); this.D = { nodos: [], aristas: [], capas: [], temas: {} };
     this.N = []; this.E = [];
   }
@@ -755,19 +705,9 @@ class VistaMapa extends ItemView {
     this.marca.setText(T('{0} · {1} nodos · {2} enlaces', NOMBRE, this.D.nodos.length, this.D.aristas.length) + (conEnlaces ? T(' · {0} con enlaces', conEnlaces) : ''));
     if (this.solo && !this.D.temas[this.solo]) this.solo = null;
     if (this.vacios) this.listaVacios = this.calcularVacios();
-    this.pintarChips(); this.pintarEstado();   // primero la barra: su alto define el margen de arriba
     this.rehacer();
     if (this.foco && !this.porId[this.foco]) { this.foco = null; this.abrirPanel(null); }
-  }
-
-  // La barra de temas puede pasar de una fila a tres y empujar los títulos de las capas. Cada
-  // vez que cambia, el mapa se vuelve a medir: si no, las capas quedan detrás de la barra.
-  refrescarBarra() {
-    const antes = this.altoBarra || 0;
     this.pintarChips(); this.pintarEstado();
-    const ahora = this.barra ? this.barra.getBoundingClientRect().height : 0;
-    this.altoBarra = ahora;
-    if (Math.abs(ahora - antes) > 2) { this.medir(); this.pedir(); }
   }
 
   // Grafo efectivo: temas colapsados en supernodos y sus enlaces agrupados en superenlaces.
@@ -780,47 +720,9 @@ class VistaMapa extends ItemView {
       if (!virtuales[t]) virtuales[t] = { id: 'tema:' + t, capa: ultima, titulo: this.D.temas[t][0], tema: t, propio: true, virtual: true, ruta: '', grado: 0, sinMotivo: 0 };
       return virtuales[t].id;
     };
-    const fechadas = this.D.nodos.filter((n) => n.capa === 0 && n.mes).length;
-    const umbral = Number(this.plugin.ajustes.agruparMesesDesde ?? 24);
-    this.agrupaMeses = this.forzarMeses === null ? umbral > 0 && fechadas >= umbral : !!this.forzarMeses;
-    const capsula = (id, titulo, extra) => {
-      if (!virtuales[id]) virtuales[id] = Object.assign({ id, capa: 0, titulo, esMes: true, tema: null, propio: false, virtual: true, ruta: '', grado: 0, sinMotivo: 0 }, extra);
-      return id;
-    };
-    // El acordeón del tiempo: con más de un año de notas fechadas se agrupa por AÑO, y el año
-    // abierto muestra sus meses. La cápsula del grupo abierto NO desaparece: es lo que se toca
-    // para volver a cerrarlo.
-    const meses = new Set(this.D.nodos.filter((n) => n.capa === 0 && n.mes).map((n) => n.mes));
-    this.porAnio = meses.size > 12;
-    // La entrada responde dos preguntas distintas: «¿qué escribí yo?» (el tiempo) y «¿de dónde
-    // saqué esto?» (el origen). Cada una tiene su acordeón, y las dos se abren con un clic.
-    const conOrigen = this.D.nodos.filter((n) => n.capa === 0 && !n.mes && n.origen);
-    const origenes = new Set(conOrigen.map((n) => n.origen));
-    this.agrupaOrigen = umbral > 0 && conOrigen.length >= 6 && origenes.size >= 2;
-    const grupoDe = (n) => {
-      if (n.capa !== 0) return null;
-      if (this.agrupaMeses && n.mes) {
-        const anio = n.mes.slice(0, 4);
-        if (this.porAnio && !this.aniosAbiertos.has(anio)) return capsula('anio:' + anio, anio, { grupo: 'anio', clave: anio, anio, esAnio: true });
-        const abierta = this.mesesAbiertos.has(n.mes);
-        return capsula('mes:' + n.mes, etiquetaMes(n.mes), { grupo: 'mes', clave: n.mes, mes: n.mes, abierta });
-      }
-      if (this.agrupaOrigen && n.origen) {
-        const abierta = this.origenesAbiertos.has(n.origen);
-        return capsula('origen:' + n.origen, n.origen, { grupo: 'origen', clave: n.origen, origen: n.origen, abierta });
-      }
-      return null;
-    };
     const N = [];
     for (const n of this.D.nodos) {
-      // En la entrada manda el tiempo: colapsar un tema no le puede robar notas a su mes, o la
-      // cuenta de la cápsula baja sin explicación y el mes queda a medias.
-      const g = grupoDe(n);
-      // La cuenta se lleva SIEMPRE, abierta o cerrada: `agrupados` solo cuenta lo que quedó
-      // escondido, así que al abrir el mes la cápsula se quedaba sin número y dejaba de decir
-      // cuántas notas representa — justo cuando hay que decidir si cerrarla.
-      if (g) { virtuales[g].total = (virtuales[g].total || 0) + 1; this.rep[n.id] = g; if (!virtuales[g].abierta) continue; this.rep[n.id] = n.id; }
-      else if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
+      if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
       else this.rep[n.id] = n.id;
       N.push(n);
     }
@@ -847,13 +749,7 @@ class VistaMapa extends ItemView {
     N.forEach((n) => { if (n.agrupados || n.virtual) n.gradoEf = this.ady[n.id].length; });
     const orden = Object.fromEntries(Object.keys(this.D.temas).map((t, i) => [t, i]));
     const posBase = new Map(this.D.nodos.map((x, i) => [x, i]));
-    // La entrada se ordena por tiempo y cada cápsula queda justo arriba de sus notas, como un
-    // acordeón. Lo que no tiene fecha (las fuentes citadas) va al final.
-    const clave = (x) => x.anio ? x.anio + '-00' : x.mes ? x.mes : x.origen ? '9998-' + x.origen : '9999-99';
-    this.N = N.sort((p, q) => p.capa - q.capa
-      || (p.capa === 0 ? clave(p).localeCompare(clave(q)) || (q.esMes ? 1 : 0) - (p.esMes ? 1 : 0) || String(p.titulo).localeCompare(String(q.titulo)) : 0)
-      || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99)
-      || (posBase.get(p) ?? 0) - (posBase.get(q) ?? 0));
+    this.N = N.sort((p, q) => p.capa - q.capa || (orden[p.tema] ?? 99) - (orden[q.tema] ?? 99) || (posBase.get(p) ?? 0) - (posBase.get(q) ?? 0));
     // Revelado progresivo: cada capa muestra sus notas más conectadas; el resto se trae buscando o tocando.
     const max = Math.max(10, Number(this.plugin.ajustes.maxPorCapa) || 150);
     this.ocultas = {};
@@ -862,7 +758,7 @@ class VistaMapa extends ItemView {
       const rango = col.slice().sort((a, b) => (this.ady[b.id]?.length || 0) - (this.ady[a.id]?.length || 0));
       const visibles = new Set(rango.slice(0, max).map((x) => x.id));
       let ocultas = 0;
-      for (const x of col) { x.oculto = !visibles.has(x.id) && !this.forzados.has(x.id) && !x.agrupados && !x.virtual && !x.esMes; if (x.oculto) ocultas++; }
+      for (const x of col) { x.oculto = !visibles.has(x.id) && !this.forzados.has(x.id) && !x.agrupados && !x.virtual; if (x.oculto) ocultas++; }
       this.ocultas[capa] = ocultas;
     });
     if (this.foco && !this.porId[this.foco]) this.foco = this.rep[this.foco] || null;
@@ -913,8 +809,6 @@ class VistaMapa extends ItemView {
     const t = [];
     if (this.radial) t.push(this.foco ? T('◎ radial') : T('◎ radial: toca una nota'));
     if (this.colapsados.size) t.push(T('◉ {0} tema(s) colapsado(s)', this.colapsados.size));
-    if (this.aniosAbiertos.size) t.push(T('▣ {0} año(s) abierto(s)', this.aniosAbiertos.size));
-    if (this.mesesAbiertos.size) t.push(T('▾ {0} mes(es) abierto(s) · toca la cápsula ▾ para cerrar', this.mesesAbiertos.size));
     if (this.vacios) t.push(T('⌁ vacíos'));
     if (this.salud) t.push(T('❤︎ salud'));
     if (this.reciente) t.push(T('◷ últimos {0} días', this.reciente));
@@ -923,21 +817,6 @@ class VistaMapa extends ItemView {
     if (this.eligiendo) t.push(this.eligiendo.desde ? T('→ toca la nota de destino') : T('→ toca la nota de origen'));
     this.estado.setText(t.join(' · '));
   }
-  // Un clic en la cápsula la abre o la cierra. La cápsula del grupo abierto sigue dibujada
-  // justo arriba de sus notas: sin eso se puede abrir un mes y no hay cómo cerrarlo.
-  alternarTiempo(n) {
-    const sets = { anio: this.aniosAbiertos, mes: this.mesesAbiertos, origen: this.origenesAbiertos };
-    const grupo = n.grupo || (n.esAnio ? 'anio' : 'mes'), clave = n.clave ?? (n.esAnio ? n.anio : n.mes);
-    const set = sets[grupo];
-    if (set.has(clave)) {
-      set.delete(clave);
-      // cerrar un año cierra también los meses que quedaron abiertos dentro
-      if (grupo === 'anio') [...this.mesesAbiertos].filter((m) => m.startsWith(clave)).forEach((m) => this.mesesAbiertos.delete(m));
-    } else set.add(clave);
-    this.camino = null; this.sugerencia = null; this.foco = null; this.abrirPanel(null);
-    this.rehacer(); this.refrescarBarra();
-  }
-  alternarMes(mes) { this.alternarTiempo({ mes }); }
   alternarColapso(t) {
     this.colapsados.has(t) ? this.colapsados.delete(t) : this.colapsados.add(t);
     this.camino = null; this.sugerencia = null;
@@ -981,13 +860,6 @@ class VistaMapa extends ItemView {
       if (!this.D.nodos.some((n) => n.tema === id)) continue;
       m.addItem((i) => i.setTitle(T('{0} {1}', this.colapsados.has(id) ? T('Expandir') : T('Colapsar'), nombre)).setIcon(this.colapsados.has(id) ? 'maximize-2' : 'minimize-2').onClick(() => this.alternarColapso(id)));
     }
-    if (this.agrupaMeses || this.mesesAbiertos.size) m.addItem((i) => i.setTitle(this.agrupaMeses ? T('No agrupar la entrada por mes') : T('Agrupar la entrada por mes')).setIcon('calendar-days').onClick(() => {
-      this.forzarMeses = !this.agrupaMeses; this.mesesAbiertos.clear(); this.foco = null; this.abrirPanel(null);
-      this.rehacer(); this.pintarEstado();
-    }));
-    if (this.mesesAbiertos.size || this.aniosAbiertos.size || this.origenesAbiertos.size) m.addItem((i) => i.setTitle(T('Volver a cerrar el tiempo')).setIcon('calendar-minus').onClick(() => {
-      this.mesesAbiertos.clear(); this.aniosAbiertos.clear(); this.origenesAbiertos.clear(); this.rehacer(); this.refrescarBarra();
-    }));
     if (this.colapsados.size) m.addItem((i) => i.setTitle(T('Expandir todos')).setIcon('expand').onClick(() => { this.colapsados.clear(); this.rehacer(); this.pintarChips(); this.pintarEstado(); }));
     m.addSeparator();
     for (const d of [0, 7, 30]) m.addItem((i) => i.setTitle(d ? T('Actualizado en {0} días', d) : T('Toda la actividad')).setChecked(this.reciente === d).setIcon('clock').onClick(() => { this.reciente = d; this.pintarEstado(); this.pedir(); }));
@@ -1022,22 +894,9 @@ class VistaMapa extends ItemView {
     const margen = this.angosto() ? 70 : Math.max(120, this.W * 0.1), paso = (this.anchoLogico - reserva - 2 * margen) / (n - 1);
     this.capas = this.D.capas.map((c, i) => {
       const col = this.N.filter((x) => x.capa === i && !x.oculto), alto = Hl - arriba - abajo;
-      // Una cápsula es un CONTROL, no un punto: se reserva su propio alto y los puntos se
-      // reparten el resto. Cuando compartía un paso único con los puntos, bastaba con que la
-      // columna se llenara para que el paso bajara de los 21 px que mide la cápsula: dos
-      // cápsulas seguidas se pisaban, y la abierta quedaba encima de la primera nota que
-      // acababa de mostrar. Es exactamente lo que hacía imposible volver a cerrarla.
-      const nCaps = col.filter((x) => x.esMes).length, nPuntos = col.length - nCaps;
-      const pasoCap = nCaps ? Math.max(24, Math.min(31, (alto - 9 * nPuntos) / nCaps)) : 0;
-      const cabe = (alto - pasoCap * nCaps) / Math.max(nPuntos, 1);
-      const pasoPunto = Math.min(this.angosto() ? 46 : 28, Math.max(cabe, 9));
-      const avance = (x) => (x.esMes ? pasoCap : pasoPunto);
-      let span = 0;
-      for (let j = 0; j < col.length - 1; j++) span += avance(col[j]);
-      const y0 = Math.max(arriba, arriba + (alto - span) / 2);
-      let y = y0;
-      col.forEach((x) => { x.x = margen + i * paso; x.y = y; y += avance(x); });
-      return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + span + 16, def: c };
+      const gap = Math.min(alto / Math.max(col.length, 1), this.angosto() ? 46 : 28), y0 = arriba + (alto - gap * (col.length - 1)) / 2;
+      col.forEach((x, j) => { x.x = margen + i * paso; x.y = y0 + j * gap; });
+      return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + gap * Math.max(col.length - 1, 0) + 16, def: c };
     });
   }
   medirRadial() {
@@ -1070,8 +929,6 @@ class VistaMapa extends ItemView {
     v.x = cx - ((cx - v.x) * k) / v.k; v.y = cy - ((cy - v.y) * k) / v.k; v.k = k; this.pedir();
   }
   enfocar(id, centrar) {
-    const cap = this.porId?.[id];
-    if (cap && cap.esMes) return this.alternarTiempo(cap);
     let n = this.porId[id]; if (!n) return;
     if (n.oculto) { this.forzados.add(id); this.rehacer(); n = this.porId[id]; }
     this.foco = id; this.camino = null; this.sugerencia = null;
@@ -1135,10 +992,6 @@ class VistaMapa extends ItemView {
     ctx.save(); ctx.translate(vista.x, vista.y); ctx.scale(vista.k, vista.k);
     if (!this.familia) this.familia = getComputedStyle(this.contentEl).getPropertyValue('--font-monospace').trim() || 'ui-monospace, Menlo, monospace';
     const sk = Math.sqrt(vista.k), f = (peso, tam) => `${peso} ${tam / sk}px ${this.familia}`;
-    // Las cápsulas de mes se miden antes de dibujar los enlaces: una línea que sale del centro
-    // atraviesa la etiqueta y le tacha la cuenta. Sale del borde.
-    ctx.font = f(600, 11.5);
-    for (const n of this.N) if (n.esMes) n.ancho = ctx.measureText(etiquetaCapsula(n)).width + 18 / vista.k;
     const color = (t) => (this.D.temas[t] ? this.D.temas[t][1] : '#C9D1FF');
     const radial = !!this.dist, ultima = this.D.capas.length - 1;
     const enCamino = this.camino ? new Set(this.camino) : null;
@@ -1161,9 +1014,7 @@ class VistaMapa extends ItemView {
         const tituloCapa = `${c.def[0]} · ${c.def[1]}`, wt = ctx.measureText(tituloCapa).width;
         cajas.push({ x: (i === ultima ? lx - wt : lx) - 4, y: c.y0 - 22 - 14 / sk, w: wt + 8, h: 30 / sk });
         ctx.fillText(tituloCapa, lx, c.y0 - 22);
-        // El subtítulo de la capa es informativo, no una alarma: iba en el mismo rojo que los
-        // vacíos y los problemas de salud, y el mapa entero se leía como si algo estuviera mal.
-        ctx.fillStyle = TENUE; ctx.font = f(400, 10.5);
+        ctx.fillStyle = '#FF6B6B'; ctx.font = f(400, 10.5);
         const descripcion = c.def[2] && !this.angosto() ? ' · ' + c.def[2] : ''; // en el celular no cabe
         ctx.fillText(`${T('{0} nodos', c.n)}${this.ocultas?.[i] ? T(' · +{0} ocultas', this.ocultas[i]) : ''}${descripcion}`, lx, c.y0 - 8);
         ctx.textAlign = 'left';
@@ -1175,12 +1026,9 @@ class VistaMapa extends ItemView {
       ctx.beginPath(); ctx.moveTo(A.x, A.y);
       if (radial) { const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, c = this.porId[this.foco]; ctx.quadraticCurveTo(mx + (c.x - mx) * 0.25, my + (c.y - my) * 0.25, B.x, B.y); }
       else {
-        const L = A.x <= B.x ? A : B, R = L === A ? B : A;
-        // Una cápsula de mes es ancha: la línea arranca de su borde, no de su centro.
-        const lx = L.x + (L.ancho ? L.ancho / 2 : 0), rx = R.x - (R.ancho ? R.ancho / 2 : 0);
-        ctx.moveTo(lx, L.y);
-        if (L.capa === R.capa) { const dx = 26 + Math.abs(R.y - L.y) * 0.12; ctx.bezierCurveTo(lx + dx, L.y, rx + dx, R.y, rx, R.y); }
-        else { const mx = (lx + rx) / 2; ctx.bezierCurveTo(mx, L.y, mx, R.y, rx, R.y); }
+        const L = A.x <= B.x ? A : B, R = L === A ? B : A; ctx.moveTo(L.x, L.y);
+        if (L.capa === R.capa) { const dx = 26 + Math.abs(R.y - L.y) * 0.12; ctx.bezierCurveTo(L.x + dx, L.y, R.x + dx, R.y, R.x, R.y); }
+        else { const mx = (L.x + R.x) / 2; ctx.bezierCurveTo(mx, L.y, mx, R.y, R.x, R.y); }
       }
       ctx.stroke(); if (discontinua) ctx.setLineDash([]);
     };
@@ -1235,50 +1083,6 @@ class VistaMapa extends ItemView {
       if (!this.visible(n)) continue;
       const enSug = this.sugerencia && (this.rep[this.sugerencia[0]] === n.id || this.rep[this.sugerencia[1]] === n.id);
       const activo = enCamino ? enCamino.has(n.id) : this.sugerencia ? enSug : (!nivel || n.id in nivel) && this.activo(n);
-      if (n.esMes) { // un mes se dibuja como cápsula con su nombre: un punto grande no dice «mes»
-        ctx.font = f(600, 11.5);
-        const etq = etiquetaCapsula(n);
-        const w = ctx.measureText(etq).width, alto = 21 / sk, pad = 9 / vista.k, rr = alto / 2;
-        // Una cápsula ancha centrada en su columna se sale por la izquierda del lienzo: se acota
-        // al borde visible en vez de dejarla cortada.
-        const izq = -vista.x / vista.k + 6 / vista.k;
-        const bx = Math.max(izq, n.x - (w + pad * 2) / 2), by = n.y - alto / 2;
-        // Abierta y cerrada pesan lo MISMO: mismo tamaño, mismo contraste, mismo borde sólido.
-        // Solo cambia el color — acento cuando está abierta, neutro cuando no. Antes la abierta
-        // se dibujaba en punteado casi transparente: dejaba de parecer un botón justo cuando
-        // había que volver a tocarla.
-        const base = n.abierta ? ACENTO : '#C9D1FF';
-        ctx.fillStyle = rgba(base, n.abierta ? 0.18 : activo ? 0.13 : 0.06);
-        ctx.strokeStyle = rgba(base, n.abierta ? 0.66 : activo ? 0.52 : 0.22);
-        ctx.lineWidth = 1.2 / vista.k;
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx, by, w + pad * 2, alto, rr); else ctx.rect(bx, by, w + pad * 2, alto);
-        ctx.fill(); ctx.stroke();
-        // El corchete: abraza las notas que la cápsula acaba de mostrar. Sin él no se leen como
-        // «las de este mes», solo como más puntos. Va pegado a la columna de puntos y termina en
-        // un pie: dos grupos abiertos seguidos caen en la misma vertical, y sin el pie las dos
-        // líneas se leen como una sola que nunca cierra.
-        if (n.abierta) {
-          let fin = n.y;
-          for (const x of this.N) if (!x.esMes && !x.oculto && x.capa === n.capa && (x.mes === n.clave || x.origen === n.clave)) fin = Math.max(fin, x.y);
-          if (fin > n.y + 6 / vista.k) {
-            const lx = n.x - 13 / vista.k, pie = 5 / vista.k;
-            ctx.strokeStyle = rgba(ACENTO, 0.38); ctx.lineWidth = 1.5 / vista.k;
-            ctx.beginPath();
-            ctx.moveTo(lx + pie, by + alto + 2 / vista.k); ctx.lineTo(lx, by + alto + 2 / vista.k);
-            ctx.lineTo(lx, fin); ctx.lineTo(lx + pie, fin);
-            ctx.stroke();
-          }
-        }
-        ctx.fillStyle = n.abierta ? '#FFFFFF' : activo ? '#FFFFFF' : 'rgba(230,234,255,.52)';
-        ctx.fillText(etq, bx + pad, n.y + 4 / sk);
-        // El área de clic queda igual a lo dibujado. Antes el clic se medía por distancia al
-        // CENTRO con radio de 14 px: en una cápsula de 130 px de ancho, tocar su texto no la
-        // activaba — o activaba la nota de al lado.
-        n.caja = { x: bx, y: by, w: w + pad * 2, h: alto };
-        cajas.push({ x: bx - 3 / vista.k, y: by - 3 / vista.k, w: w + pad * 2 + 6 / vista.k, h: alto + 6 / vista.k });
-        continue; // ni punto ni rótulo aparte: la cápsula ya los reemplaza
-      }
       const base = n.capa === ultima || n.agrupados ? 6.5 + Math.min(8, Math.sqrt(n.agrupados || 0) * 1.6) : 1.8 + Math.min(4.2, Math.sqrt(n.grado) * 0.6);
       const r = (radial && n.id === this.foco ? 9 : base) / sk;
       ctx.fillStyle = rgba(color(n.tema), activo ? 1 : 0.16); ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
@@ -1297,7 +1101,7 @@ class VistaMapa extends ItemView {
     const aire = 3 / vista.k;
     for (const n of rotulos) {
       const fijo = esFijo(n);
-      let texto = !n.esMes && (n.capa === ultima || n.agrupados) && this.D.temas[n.tema] ? this.D.temas[n.tema][0] : n.titulo;
+      let texto = (n.capa === ultima || n.agrupados) && this.D.temas[n.tema] ? this.D.temas[n.tema][0] : n.titulo;
       if (n.agrupados) texto += ` · ${n.agrupados + 1} notas`;
       const fuerte = fijo || n.capa === ultima, tam = n.capa === ultima || n.agrupados ? 13 : 11.5;
       ctx.font = f(fuerte ? 600 : 500, tam);
@@ -1317,14 +1121,6 @@ class VistaMapa extends ItemView {
   // ── gestos ─────────────────────────────────────────────────────────────────
   nodoEn(px, py) {
     const v = this.vista, x = (px - v.x) / v.k, y = (py - v.y) / v.k;
-    // Las cápsulas primero y por su rectángulo: son controles anchos y tienen que ganarle a
-    // cualquier punto que les quede debajo. El margen extra es el dedo en el celular.
-    const m = (Platform.isMobile ? 6 : 3) / v.k;
-    for (const n of this.N) {
-      if (!n.esMes || !n.caja || !this.visible(n)) continue;
-      const c = n.caja;
-      if (x >= c.x - m && x <= c.x + c.w + m && y >= c.y - m && y <= c.y + c.h + m) return n;
-    }
     let mejor = null, dmin = (Platform.isMobile ? 22 : 14) / v.k;
     for (const n of this.N) { if (!this.visible(n)) continue; const d = Math.hypot(n.x - x, n.y - y); if (d < dmin) { dmin = d; mejor = n; } }
     return mejor;
@@ -1354,7 +1150,6 @@ class VistaMapa extends ItemView {
       if (!t || t.movio || e.type === 'pointercancel') return;
       const [x, y] = local(e), n = this.nodoEn(x, y);
       if (this.eligiendo) return this.elegirCamino(n);
-      if (n && (Date.now() - t.t > 550) && n.esMes) return this.alternarTiempo(n);
       if (n && (Date.now() - t.t > 550) && n.tema && (n.agrupados || n.capa === this.D.capas.length - 1)) return this.alternarColapso(n.tema);
       this.camino = null; this.sugerencia = null;
       if (!n) { this.foco = null; this.abrirPanel(this.vacios ? 'vacios' : null); if (this.radial) { this.medir(); this.pintarEstado(); } this.pedir(); return; }
@@ -1391,8 +1186,7 @@ class VistaMapa extends ItemView {
     const temas = [...new Set(vec.filter((v) => v.tema && v.tema !== n.tema && !v.fuente).map((v) => v.tema))];
     const grados = this.N.filter((x) => !x.fuente && x.capa !== ultima).map((x) => this.ady[x.id].length).sort((x, y) => y - x);
     const umbral = grados[Math.floor(grados.length * 0.1)] || Infinity, out = [];
-    if (n.esMes) out.push(T('Agrupa {0} notas de ese mes. Tócala para abrirla, y otra vez para cerrarla.', n.total ?? n.agrupados));
-    else if (n.agrupados) out.push(T('Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.', n.agrupados + 1));
+    if (n.agrupados) out.push(T('Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.', n.agrupados + 1));
     else if (n.capa === ultima) out.push(T('Página de síntesis: resume el tema y de ella cuelgan sus notas.'));
     else if (!vec.length) out.push(T('Aislada: ninguna nota la enlaza y ella no enlaza a ninguna.'));
     else {
@@ -1420,9 +1214,7 @@ class VistaMapa extends ItemView {
     const ojo = cab.createDiv('mn-ojo2');
     ojo.createSpan({ cls: 'mn-punto' }).setCssProps({ '--mn-color': colorTema });
     ojo.createSpan({ text: n.agrupados ? `Supernodo · ${nombreTema}` : `${nombreTema} · ${capa[1]}` });
-    // Un mes se nombra por su mes; un tema colapsado, por su tema. Y el mes no suma uno:
-    // su nodo es virtual, no una nota más.
-    cab.createEl('h3', { text: n.esMes ? T('{0} · {1} notas', n.titulo, n.total ?? n.agrupados) : n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
+    cab.createEl('h3', { text: n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
     const meta = [];
     if (!n.virtual) meta.push(n.fuente ? 'fuente original' : n.ruta.split('/').slice(-2).join('/'));
     meta.push(`${vec.length} conexiones`);
@@ -1432,7 +1224,6 @@ class VistaMapa extends ItemView {
     if (!n.fuente && !n.virtual) this.boton(acciones, 'file-text', 'Abrir', () => this.abrirNota(n.ruta), true);
     if (!this.radial) this.boton(acciones, 'orbit', T('Radial'), () => { this.radial = true; this.foco = n.id; this.medir(); this.encuadrar(); this.pintarEstado(); });
     this.boton(acciones, 'route', T('Camino'), () => { this.eligiendo = { desde: n.id }; this.abrirPanel(null); new Notice(T('Toca la nota de destino')); this.pintarEstado(); this.pedir(); });
-    if (n.esMes) this.boton(acciones, 'calendar-days', T('Abrir el mes'), () => this.alternarMes(n.mes));
     if (n.tema && (n.agrupados || n.capa === ultima)) this.boton(acciones, this.colapsados.has(n.tema) ? 'maximize-2' : 'minimize-2', this.colapsados.has(n.tema) ? 'Expandir' : 'Colapsar', () => this.alternarColapso(n.tema));
     const cerrar = acciones.createEl('button', { cls: 'mn-btn mn-cerrar', attr: { 'aria-label': T('Cerrar'), title: T('Cerrar') } });
     try { setIcon(cerrar, 'x'); } catch { cerrar.setText('×'); }
@@ -1646,8 +1437,6 @@ class AjustesMapa extends PluginSettingTab {
       .addToggle((t) => t.setValue(p.ajustes.fuentes).onChange(async (v) => { p.ajustes.fuentes = v; await p.guardar(); }));
     new Setting(c).setName(T('Notas visibles por capa')).setDesc(T('En vaults grandes, cada capa muestra sus notas más conectadas. Las demás aparecen al buscarlas o al tocarlas desde el panel.'))
       .addSlider((sl) => sl.setLimits(30, 600, 10).setValue(Number(p.ajustes.maxPorCapa) || 150).setDynamicTooltip().onChange(async (v) => { p.ajustes.maxPorCapa = v; await p.guardar(); }));
-    new Setting(c).setName(T('Agrupar la primera capa por mes')).setDesc(T('La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.'))
-      .addSlider((sl) => sl.setLimits(0, 120, 4).setValue(Number(p.ajustes.agruparMesesDesde ?? 24)).setDynamicTooltip().onChange(async (v) => { p.ajustes.agruparMesesDesde = v; await p.guardar(); }));
     new Setting(c).setName(T('Seguir la nota activa')).setDesc(T('Al abrir una nota, el mapa la enfoca.'))
       .addToggle((t) => t.setValue(p.ajustes.seguirActiva).onChange(async (v) => { p.ajustes.seguirActiva = v; await p.guardar(); }));
     new Setting(c).setName(T('Animación')).setDesc(T('Pulsos de luz que viajan por los enlaces. Solo mientras el mapa está visible; se apaga si el sistema pide reducir movimiento.'))
@@ -1655,8 +1444,6 @@ class AjustesMapa extends PluginSettingTab {
     new Setting(c).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Propiedad de enlaces externos')).setDesc(T('Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.'))
       .addText((t) => t.setValue(p.ajustes.propiedadEnlaces).onChange(async (v) => { p.ajustes.propiedadEnlaces = v.trim(); await p.guardar(); }));
-    new Setting(c).setName(T('Propiedad de origen')).setDesc(T('Propiedad del frontmatter que dice de dónde vino una nota. El Web Clipper de Obsidian escribe «source». Si es una URL se agrupa por dominio; si es un texto, por ese texto. Vacío = no se agrupa por origen.'))
-      .addText((t) => t.setValue(p.ajustes.propiedadOrigen).onChange(async (v) => { p.ajustes.propiedadOrigen = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Propiedad de fecha de modificación')).setDesc(T('Si la escribes, al aprobar un motivo se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.'))
       .addText((t) => t.setValue(p.ajustes.propiedadFecha).onChange(async (v) => { p.ajustes.propiedadFecha = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Sección de conexiones')).setDesc(T('Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).'))
