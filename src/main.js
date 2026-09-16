@@ -274,8 +274,8 @@ const EN = {
   'Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.':
     'Frontmatter properties holding web links, comma separated. Accepts "Title | https://…", "https://…" and "user/repo". Empty = not shown.',
   'Propiedad de fecha de modificación': 'Last-modified property',
-  'Si la escribes, al aprobar un motivo se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.':
-    'If set, approving a reason writes today’s date in that property of the note. Empty = the plugin never touches the frontmatter.',
+  'Si la escribes, al aprobar un motivo o un resumen se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.':
+    'If set, approving a reason or a summary writes today’s date in that property of the note. Empty = the plugin never touches the frontmatter.',
   'Probar la conexión': 'Test the connection',
   'Hace una llamada mínima —unos pocos tokens— y te dice si tu IA responde. Ninguna nota se envía.':
     'Makes one tiny call — a few tokens — and tells you whether your AI answers. No note is sent.',
@@ -1474,7 +1474,7 @@ class AjustesMapa extends PluginSettingTab {
     new Setting(c).setName(T('Carpeta para exportar imágenes')).addText((t) => t.setValue(p.ajustes.carpetaExport).onChange(async (v) => { p.ajustes.carpetaExport = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Propiedad de enlaces externos')).setDesc(T('Propiedades del frontmatter con enlaces web, separadas por coma. Acepta «Título | https://…», «https://…» y «usuario/repo». Vacío = no se muestran.'))
       .addText((t) => t.setValue(p.ajustes.propiedadEnlaces).onChange(async (v) => { p.ajustes.propiedadEnlaces = v.trim(); await p.guardar(); }));
-    new Setting(c).setName(T('Propiedad de fecha de modificación')).setDesc(T('Si la escribes, al aprobar un motivo se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.'))
+    new Setting(c).setName(T('Propiedad de fecha de modificación')).setDesc(T('Si la escribes, al aprobar un motivo o un resumen se pone la fecha de hoy en esa propiedad de la nota. Vacío = el plugin no toca el frontmatter.'))
       .addText((t) => t.setValue(p.ajustes.propiedadFecha).onChange(async (v) => { p.ajustes.propiedadFecha = v.trim(); await p.guardar(); }));
     new Setting(c).setName(T('Sección de conexiones')).setDesc(T('Título de la sección al final de cada nota donde van los motivos aprobados («- [[nota]] — motivo»).'))
       .addText((t) => t.setValue(p.ajustes.seccionMotivos).onChange(async (v) => { p.ajustes.seccionMotivos = v.trim() || 'Conexiones'; await p.guardar(); }));
@@ -1686,7 +1686,12 @@ export default class MapaNeuronal extends Plugin {
   }
   async aprobarResumen(ruta, res) {
     const f = this.app.vault.getFileByPath(ruta); if (!f) throw new Error(T('No encuentro la nota'));
-    await this.app.fileManager.processFrontMatter(f, (fm) => { fm.resumen = res.resumen; });
+    // Guardar el resumen MODIFICA la nota, así que también le corresponde la fecha de hoy. Antes
+    // solo la estampaba al aprobar un motivo: la nota quedaba tocada con una fecha vieja, y en un
+    // wiki donde esa fecha es el criterio de qué está al día, eso es una mentira silenciosa.
+    // Sigue dependiendo de que el usuario haya configurado la propiedad: sin eso, no se toca.
+    const prop = this.ajustes.propiedadFecha, hoyStr = hoy();
+    await this.app.fileManager.processFrontMatter(f, (fm) => { fm.resumen = res.resumen; if (prop) fm[prop] = hoyStr; });
     await this.registrar(`\n## ${new Date().toTimeString().slice(0, 5)} · resumen de ${ruta}\n- Resumen aprobado: ${res.resumen}\n${(res.citas || []).map((c) => `- Cita: «${c.texto}»`).join('\n')}\n- Modelo: ${res.modelo} · segunda revisión: ${res.revision ? (res.revision.fiel ? 'fiel' : 'no fiel') : 'desactivada'} · aprobado por la persona\n`);
     this.refrescarVistas();
   }
