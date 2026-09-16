@@ -198,6 +198,27 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
     const c0 = capa0(), i = c0.findIndex((n) => n.esMes && n.mes === '2026-08');
     return i >= 0 && c0[i + 1] && c0[i + 1].mes === '2026-08' && !c0[i + 1].esMes;
   })());
+  p.igual('la cápsula abierta sigue diciendo cuántas notas agrupa', capsula('2026-08').total, 30);
+  // Dos cápsulas seguidas NO se pueden pisar. Cuando compartían el paso de la columna, con la
+  // columna llena el paso bajaba de los 21 px que mide una cápsula y quedaban una sobre otra:
+  // era imposible apuntarle a la de abajo, y la abierta tapaba su primera nota.
+  v2.dibujar();
+  p.cierto('ninguna cápsula se pisa con la siguiente', (() => {
+    const ys = capsulas().map((n) => n.y).sort((a, b) => a - b);
+    return ys.every((y, i) => i === 0 || y - ys[i - 1] >= 21);
+  })());
+  p.cierto('una cápsula no se pisa con la nota que sigue', (() => {
+    const c = capsula('2026-08'), sig = capa0().filter((n) => n.y > c.y).sort((a, b) => a.y - b.y)[0];
+    return !sig || sig.y - c.y >= 12;
+  })());
+  // El área de clic es el rectángulo dibujado, no un radio alrededor del centro: tocar el texto
+  // de una cápsula ancha no activaba nada, o activaba la nota vecina.
+  p.cierto('se puede tocar la cápsula por su texto, no solo por el centro', (() => {
+    const c = capsula('2026-08'); if (!c || !c.caja) return false;
+    const x = c.caja.x + 4, y = c.caja.y + c.caja.h / 2;
+    return Math.abs(x - c.x) > 14 && v2.nodoEn(x, y) === c;
+  })());
+
   // un clic en la cápsula la cierra: es el gesto que cualquiera prueba primero
   v2.enfocar('mes:2026-08', false);
   p.igual('un clic en la cápsula abierta la cierra', capa0().filter((n) => n.mes === '2026-08' && !n.esMes).length, 0);
