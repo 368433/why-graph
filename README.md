@@ -80,6 +80,11 @@ open it in a browser.
 
   ![The input layer grouped into month capsules](docs/imagenes/06-meses.webp)
 
+- **Clippings group by where they came from.** The input layer answers two questions: *what
+  did I write* (time) and *where did I get this* (origin). Notes with a source property —
+  Obsidian Web Clipper writes `source` — fold into capsules per domain: `github.com · 12`,
+  `x.com · 8`. A plain-text source works too, grouped by that text.
+
 - **Radial view.** Centre on one note and see its world in rings: direct neighbours,
   then theirs. The animation travels outward ring by ring.
 

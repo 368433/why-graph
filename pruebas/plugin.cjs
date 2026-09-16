@@ -220,7 +220,48 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
     return !chico.agrupaMeses;
   })()));
 
-  // ── 9. Las herramientas también cuelgan del «···» de la pestaña ──────────────────────────────
+  // ── 9. La entrada también se agrupa por ORIGEN: de dónde vino cada recorte ───────────────────
+  const recortes = {};
+  const fuentes = [
+    ['github.com/obsidianmd/obsidian-api', 3], ['https://x.com/karpathy/status/123', 2],
+    ['https://www.perfectdailygrind.com/nota', 2], ['Skool — Imperio Agéntico', 2],
+  ];
+  let i = 0;
+  for (const [origen, cuantos] of fuentes) {
+    for (let k = 0; k < cuantos; k++) {
+      const url = origen.startsWith('http') ? origen : origen.startsWith('github') ? 'https://' + origen : origen;
+      recortes[`Fuentes/clip-${++i}.md`] = `---\nsource: "${url}"\n---\n\nRecorte ${i}. Habla de [[proyecto-tostador]].\n`;
+    }
+  }
+  const vClip = vaultSimulado(Object.assign({}, NOTAS, recortes));
+  const ajClip = Object.assign({}, AJUSTES, { carpetas: AJUSTES.carpetas + '\nFuentes = 0' });
+  const D3 = await construir(vClip.app, ajClip);
+  const porOrigen = (o) => D3.nodos.filter((n) => n.origen === o).length;
+  p.igual('de una URL se queda el dominio, sin www', porOrigen('perfectdailygrind.com'), 2);
+  p.igual('x.com se agrupa aparte', porOrigen('x.com'), 2);
+  p.igual('y un origen escrito a mano vale igual', porOrigen('Skool — Imperio Agéntico'), 2);
+
+  const v3 = new VistaMapa({}, { ajustes: ajClip, tieneIA: () => false, app: vClip.app });
+  v3.app = vClip.app; v3.contentEl = el();
+  v3.lienzo = { style: {}, getContext: () => contexto2D(), getBoundingClientRect: () => ({ width: 1400, height: 900, top: 0, left: 0 }) };
+  v3.ctx = v3.lienzo.getContext(); v3.marca = el(); v3.chips = el(); v3.estado = el(); v3.panel = el(); v3.guia = el();
+  v3.D = D3; v3.plugin.construir = null;
+  await v3.recargar();
+  const caps3 = () => v3.N.filter((n) => n.capa === 0 && n.esMes);
+  p.cierto('con varios recortes de varios orígenes, agrupa', v3.agrupaOrigen);
+  p.igual('una cápsula por origen', caps3().filter((n) => n.grupo === 'origen').length, 4);
+  p.cierto('el dominio es la etiqueta', caps3().some((n) => n.titulo === 'github.com'));
+  const gh = caps3().find((n) => n.titulo === 'github.com');
+  v3.alternarTiempo(gh);
+  p.igual('al abrir un origen aparecen sus recortes', v3.N.filter((n) => n.origen === 'github.com' && !n.esMes).length, 3);
+  p.cierto('y su cápsula sigue ahí para cerrarlo', !!caps3().find((n) => n.clave === 'github.com' && n.abierta));
+  v3.alternarTiempo(caps3().find((n) => n.clave === 'github.com'));
+  p.igual('se cierra de nuevo', v3.N.filter((n) => n.origen === 'github.com' && !n.esMes).length, 0);
+  ajClip.propiedadOrigen = '';
+  const D4 = await construir(vClip.app, ajClip);
+  p.igual('sin propiedad configurada, ninguna nota tiene origen', D4.nodos.filter((n) => n.origen).length, 0);
+
+  // ── 10. Las herramientas también cuelgan del «···» de la pestaña ──────────────────────────────
   const { Menu } = require('./simulado.cjs').obsidian || {};
   const menuFalso = { items: [], addItem(f) { const c = { titulo: '', setTitle(v) { c.titulo = v; return c; }, setIcon: () => c, setChecked: () => c, onClick: () => c }; this.items.push(c); f(c); return this; }, addSeparator() { this.items.push('---'); return this; } };
   v.onPaneMenu(menuFalso, 'more-options');
@@ -231,7 +272,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   v.onPaneMenu(otroMenu, 'tab-header');
   p.igual('en la cabecera de la pestaña no se mete', otroMenu.items.length, 0);
 
-  // ── 10. El botón «Probar la conexión»: una llamada mínima, sin notas ──────────────────────────
+  // ── 11. El botón «Probar la conexión»: una llamada mínima, sin notas ──────────────────────────
   app._ls = {}; app._ls[CLAVE_IA('claude')] = 'llave-de-prueba';
   pl2.ajustes.proveedorIA = 'claude'; pl2.ajustes.modeloIA = 'claude-opus-5';
   let cuerpoPrueba = null;
@@ -242,7 +283,7 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
   p.cierto('la prueba no manda ninguna nota', !/tostadora|ana-soto|Encargada/i.test(cuerpoPrueba));
   p.cierto('la prueba es corta (menos de 400 caracteres)', cuerpoPrueba.length < 400);
 
-  // ── 11. El asistente de capas propone algo sensato ────────────────────────────────────────────
+  // ── 12. El asistente de capas propone algo sensato ────────────────────────────────────────────
   const filas = detectarCarpetas(app);
   const capaDe = (c) => (filas.find((f) => f.carpeta === c) || {}).capa;
   p.igual('manda el diario a la primera capa', capaDe('diario'), 0);

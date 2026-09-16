@@ -1,7 +1,7 @@
 {
   "id": "mapa-neuronal",
   "name": "Why Graph",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "minAppVersion": "1.8.7",
   "description": "A graph that explains itself: your vault as a layered map, with the reason each note links to the next — written by you, or suggested by your own AI with verified quotes.",
   "author": "Felipe Córdova",
