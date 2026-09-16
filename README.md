@@ -202,6 +202,14 @@ one other write: a PNG into the folder you choose.
 There is no telemetry, no analytics and no server: the plugin makes no network request
 except the AI call you ask for, to the provider you configured.
 
+It does read the list of every note in your vault — a map cannot be drawn from a subset —
+and the release assets carry [GitHub attestations](https://github.com/DBB-FC/mapa-neuronal/attestations),
+so you can verify they were built from this source:
+
+```bash
+gh attestation verify main.js --repo DBB-FC/mapa-neuronal
+```
+
 ## Looks
 
 The map draws on a dark canvas in both light and dark Obsidian themes — like a night sky,
