@@ -152,10 +152,34 @@ const AJUSTES = Object.assign({}, AJUSTES_BASE, {
     try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msg = e.message; }
     p.cierto(`error ${respuesta.status}: mensaje claro («${msg.slice(0, 40)}»)`, esperado.test(msg));
   }
+  // ── Reintento ante fallas pasajeras ─────────────────────────────────────────────────────────
+  // Un 503 en la capa gratuita es lo normal a ciertas horas. Rendirse en el primer intento hacía
+  // fallar una sugerencia que iba a funcionar dos segundos después.
+  pl2.esperasReintento = [0, 0, 0];
+  pl2.ajustes.proveedorIA = 'claude'; pl2.ajustes.modeloIA = 'claude-opus-5';
+  app._ls[CLAVE_IA('claude')] = 'llave-de-prueba';
+  let intentos = 0;
+  global.__req = () => { intentos++; return intentos < 3 ? { status: 503, json: {} } : { status: 200, json: { content: [{ type: 'text', text: '{"fiel":true,"problema":""}' }] } }; };
+  p.igual('un 503 pasajero se reintenta y termina bien', await pl2.llamarIA('s', 'u', esquema), { fiel: true, problema: '' });
+  p.igual('reintentó las veces justas', intentos, 3);
+
+  intentos = 0;
+  global.__req = () => { intentos++; return { status: 401, json: {} }; };
+  try { await pl2.llamarIA('s', 'u', esquema); } catch { /* esperado */ }
+  p.igual('una llave rechazada NO se reintenta: no gasta cuota en vano', intentos, 1);
+
+  intentos = 0;
+  global.__req = () => { intentos++; return { status: 503, json: {} }; };
+  let msg503 = '';
+  try { await pl2.llamarIA('s', 'u', esquema); } catch (e) { msg503 = e.message; }
+  p.igual('un 503 permanente se rinde tras cuatro intentos', intentos, 4);
+  p.cierto('y lo explica sin culpar al usuario', /not your setup/i.test(msg503));
+
   // Un 5xx tiene que aconsejar según el proveedor: a quien usa Gemini no se le puede decir que
   // revise si su servidor local está corriendo, ni hacerle creer que la culpa es de su config.
   for (const [prov, debe, noDebe] of [['gemini', /down or overloaded/i, /Ollama/i], ['local', /Ollama/i, /not your setup/i]]) {
     pl2.ajustes.proveedorIA = prov; pl2.ajustes.modeloIA = 'modelo-x';
+    pl2.esperasReintento = [0, 0, 0];
     app._ls[CLAVE_IA(prov)] = 'x';
     global.__req = () => ({ status: 503, json: {} });
     let msg = '(no lanzó)';

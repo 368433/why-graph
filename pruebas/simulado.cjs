@@ -130,7 +130,7 @@ function cargarPlugin(rutaMain) {
   const texto = fs.readFileSync(ruta, 'utf8');
   const sim = obsidianSimulado();
   const m = { exports: {} };
-  global.window = global.window || { devicePixelRatio: 2, matchMedia: () => ({ matches: false }), requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, open: (u) => { (global.__abiertas = global.__abiertas || []).push(u); }, localStorage: { getItem: () => null } };
+  global.window = global.window || { devicePixelRatio: 2, setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (h) => clearTimeout(h), matchMedia: () => ({ matches: false }), requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, open: (u) => { (global.__abiertas = global.__abiertas || []).push(u); }, localStorage: { getItem: () => null } };
   global.document = global.document || { visibilityState: 'visible' };
   global.getComputedStyle = global.getComputedStyle || (() => ({ getPropertyValue: () => '' }));
   global.ResizeObserver = global.ResizeObserver || class { observe() {} disconnect() {} };
