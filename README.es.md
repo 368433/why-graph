@@ -33,11 +33,16 @@ Rinde cuando tu vault tiene, o va hacia:
   `- [[otra-nota]] — el motivo`, el panel muestra tus palabras. Cuando no, muestra la frase
   real donde aparece el enlace — y la IA puede proponer el motivo que falta, para que lo apruebes.
 
-Este plugin creció dentro de un vault armado con el patrón **LLM wiki** (el de Andrej
-Karpathy: fuentes crudas e inmutables por un lado, un wiki curado por el otro, y un contrato
-escrito entre los dos). No exige ese patrón y no impone ninguna carpeta propia — pero esa es
-la forma para la que fue diseñado, y cualquier vault con una estructura deliberada (PARA,
+Este plugin creció dentro de un vault armado con el patrón **LLM wiki** — el
+[diseño original de Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f):
+fuentes crudas e inmutables por un lado, un wiki curado que mantiene el LLM por el otro, y un
+contrato escrito entre los dos. No exige ese patrón y no impone ninguna carpeta propia — pero
+esa es la forma para la que fue diseñado. Cualquier vault con una estructura deliberada (PARA,
 Zettelkasten con MOCs, un jardín digital con centros temáticos) recibe el mismo beneficio.
+
+Si llevas un LLM wiki, el mapa hace algo concreto por ti: la capa cruda se vuelve la primera
+columna, el wiki curado las del medio y las síntesis la última — así ves de un vistazo si tus
+fuentes se están destilando de verdad, o solo acumulando.
 
 Si tu vault es plano hoy, el mapa sirve igual como diagnóstico: te muestra exactamente cuánto
 de tu pensamiento está en un montón sin diferenciar.
