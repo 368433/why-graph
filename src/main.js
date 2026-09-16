@@ -236,13 +236,13 @@ const EN = {
   'Restablecer': 'Reset',
   'Vuelve a los valores por defecto.': 'Back to the default values.',
   'Restablecer no borra la llave guardada en este dispositivo.': 'Reset does not delete the key stored on this device.',
-  'Agrupa {0} notas de ese mes. Tócalo sostenido, o usa «Abrir el mes», para verlas por separado.':
-    'Groups {0} notes from that month. Long-press it, or use "Open the month", to see them separately.',
+  'Agrupa {0} notas de ese mes. Tócala para abrirla, y otra vez para cerrarla.':
+    'Groups {0} notes from that month. Tap to open it, tap again to close it.',
   'Abrir el mes': 'Open the month',
   'Agrupar la entrada por mes': 'Group the input layer by month',
   'No agrupar la entrada por mes': "Don't group the input layer by month",
   '▣ {0} año(s) abierto(s)': '▣ {0} year(s) open',
-  '▣ {0} mes(es) abierto(s) · toca la cápsula para cerrarlo': '▣ {0} month(s) open · tap the capsule to close',
+  '▾ {0} mes(es) abierto(s) · toca la cápsula ▾ para cerrar': '▾ {0} month(s) open · tap the ▾ capsule to close',
   'Volver a cerrar el tiempo': 'Close the timeline again',
   'Agrupar la primera capa por mes': 'Group the first layer by month',
   'La capa de entrada crece una nota por día. Desde esta cantidad de notas fechadas, se agrupan por mes y cada mes se abre con un toque sostenido. 0 = nunca agrupar.':
@@ -349,6 +349,10 @@ const MARCA = 'DBB Labs';
 // ficha del directorio y las instalaciones. Los nombres de archivo también se dejan quietos.
 const NOMBRE = 'Why Graph';
 const PALETA = ['#F7931A', '#34D17A', '#1FC8B4', '#5B95FF', '#F5CF45', '#B79CFF', '#FF7EB6', '#8BE9FD', '#FFB86C', '#A3E635'];
+// El acento de los controles (las cápsulas del acordeón). Va aparte de la paleta de temas: un
+// control no puede teñirse del color de un tema, o se lee como si fuera un nodo más.
+const ACENTO = '#1FC8B4';
+const TENUE = 'rgba(230,234,255,.45)';   // subtítulos y estado: informativo, nunca rojo de alarma
 const AJUSTES_BASE = {
   capas: 'Entrada | notas con fecha\nNotas | el resto del vault',
   carpetas: '',
@@ -398,6 +402,13 @@ function origenDe(fm, s) {
   if (url) return url[1].replace(/^www\./i, '').toLowerCase();
   return bruto.slice(0, 28);
 }
+// La etiqueta de una cápsula del acordeón. El triángulo va PRIMERO y siempre está: es lo que
+// dice «esto se abre y se cierra». Se calcula en un solo lugar para que medir y dibujar no se
+// desfasen (si se desfasan, los enlaces tachan la cuenta).
+const etiquetaCapsula = (n) => {
+  const t = String(n.titulo);
+  return `${n.abierta ? '▾' : '▸'}  ${t.length > 20 ? t.slice(0, 19) + '…' : t} · ${n.total ?? n.agrupados}`;
+};
 const etiquetaMes = (mes) => {
   const [a, m] = mes.split('-');
   const d = new Date(Number(a), Number(m) - 1, 1);
@@ -805,7 +816,10 @@ class VistaMapa extends ItemView {
       // En la entrada manda el tiempo: colapsar un tema no le puede robar notas a su mes, o la
       // cuenta de la cápsula baja sin explicación y el mes queda a medias.
       const g = grupoDe(n);
-      if (g) { this.rep[n.id] = g; if (!virtuales[g].abierta) continue; this.rep[n.id] = n.id; }
+      // La cuenta se lleva SIEMPRE, abierta o cerrada: `agrupados` solo cuenta lo que quedó
+      // escondido, así que al abrir el mes la cápsula se quedaba sin número y dejaba de decir
+      // cuántas notas representa — justo cuando hay que decidir si cerrarla.
+      if (g) { virtuales[g].total = (virtuales[g].total || 0) + 1; this.rep[n.id] = g; if (!virtuales[g].abierta) continue; this.rep[n.id] = n.id; }
       else if (n.tema && col.has(n.tema)) { const h = hubDe(n.tema); this.rep[n.id] = h; if (n.id !== h) continue; }
       else this.rep[n.id] = n.id;
       N.push(n);
@@ -900,7 +914,7 @@ class VistaMapa extends ItemView {
     if (this.radial) t.push(this.foco ? T('◎ radial') : T('◎ radial: toca una nota'));
     if (this.colapsados.size) t.push(T('◉ {0} tema(s) colapsado(s)', this.colapsados.size));
     if (this.aniosAbiertos.size) t.push(T('▣ {0} año(s) abierto(s)', this.aniosAbiertos.size));
-    if (this.mesesAbiertos.size) t.push(T('▣ {0} mes(es) abierto(s) · toca la cápsula para cerrarlo', this.mesesAbiertos.size));
+    if (this.mesesAbiertos.size) t.push(T('▾ {0} mes(es) abierto(s) · toca la cápsula ▾ para cerrar', this.mesesAbiertos.size));
     if (this.vacios) t.push(T('⌁ vacíos'));
     if (this.salud) t.push(T('❤︎ salud'));
     if (this.reciente) t.push(T('◷ últimos {0} días', this.reciente));
@@ -1008,15 +1022,22 @@ class VistaMapa extends ItemView {
     const margen = this.angosto() ? 70 : Math.max(120, this.W * 0.1), paso = (this.anchoLogico - reserva - 2 * margen) / (n - 1);
     this.capas = this.D.capas.map((c, i) => {
       const col = this.N.filter((x) => x.capa === i && !x.oculto), alto = Hl - arriba - abajo;
-      // Una cápsula mide más que un punto y pide más aire, pero nunca más del que hay: si se
-      // fuerza, el centrado empuja la columna ARRIBA de su margen y los títulos quedan detrás
-      // de la barra de temas.
-      const minimo = col.some((x) => x.esMes) ? 34 : 0;
-      const cabe = alto / Math.max(col.length - 1, 1);
-      const gap = Math.min(Math.max(minimo, this.angosto() ? 46 : 28), Math.max(cabe, 9));
-      const y0 = Math.max(arriba, arriba + (alto - gap * (col.length - 1)) / 2);
-      col.forEach((x, j) => { x.x = margen + i * paso; x.y = y0 + j * gap; });
-      return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + gap * Math.max(col.length - 1, 0) + 16, def: c };
+      // Una cápsula es un CONTROL, no un punto: se reserva su propio alto y los puntos se
+      // reparten el resto. Cuando compartía un paso único con los puntos, bastaba con que la
+      // columna se llenara para que el paso bajara de los 21 px que mide la cápsula: dos
+      // cápsulas seguidas se pisaban, y la abierta quedaba encima de la primera nota que
+      // acababa de mostrar. Es exactamente lo que hacía imposible volver a cerrarla.
+      const nCaps = col.filter((x) => x.esMes).length, nPuntos = col.length - nCaps;
+      const pasoCap = nCaps ? Math.max(24, Math.min(31, (alto - 9 * nPuntos) / nCaps)) : 0;
+      const cabe = (alto - pasoCap * nCaps) / Math.max(nPuntos, 1);
+      const pasoPunto = Math.min(this.angosto() ? 46 : 28, Math.max(cabe, 9));
+      const avance = (x) => (x.esMes ? pasoCap : pasoPunto);
+      let span = 0;
+      for (let j = 0; j < col.length - 1; j++) span += avance(col[j]);
+      const y0 = Math.max(arriba, arriba + (alto - span) / 2);
+      let y = y0;
+      col.forEach((x) => { x.x = margen + i * paso; x.y = y; y += avance(x); });
+      return { x: margen + i * paso, n: col.length, y0: y0 - 22, y1: y0 + span + 16, def: c };
     });
   }
   medirRadial() {
@@ -1117,7 +1138,7 @@ class VistaMapa extends ItemView {
     // Las cápsulas de mes se miden antes de dibujar los enlaces: una línea que sale del centro
     // atraviesa la etiqueta y le tacha la cuenta. Sale del borde.
     ctx.font = f(600, 11.5);
-    for (const n of this.N) if (n.esMes) n.ancho = ctx.measureText(`${n.titulo} · ${n.agrupados}`).width + 18 / vista.k;
+    for (const n of this.N) if (n.esMes) n.ancho = ctx.measureText(etiquetaCapsula(n)).width + 18 / vista.k;
     const color = (t) => (this.D.temas[t] ? this.D.temas[t][1] : '#C9D1FF');
     const radial = !!this.dist, ultima = this.D.capas.length - 1;
     const enCamino = this.camino ? new Set(this.camino) : null;
@@ -1140,7 +1161,9 @@ class VistaMapa extends ItemView {
         const tituloCapa = `${c.def[0]} · ${c.def[1]}`, wt = ctx.measureText(tituloCapa).width;
         cajas.push({ x: (i === ultima ? lx - wt : lx) - 4, y: c.y0 - 22 - 14 / sk, w: wt + 8, h: 30 / sk });
         ctx.fillText(tituloCapa, lx, c.y0 - 22);
-        ctx.fillStyle = '#FF6B6B'; ctx.font = f(400, 10.5);
+        // El subtítulo de la capa es informativo, no una alarma: iba en el mismo rojo que los
+        // vacíos y los problemas de salud, y el mapa entero se leía como si algo estuviera mal.
+        ctx.fillStyle = TENUE; ctx.font = f(400, 10.5);
         const descripcion = c.def[2] && !this.angosto() ? ' · ' + c.def[2] : ''; // en el celular no cabe
         ctx.fillText(`${T('{0} nodos', c.n)}${this.ocultas?.[i] ? T(' · +{0} ocultas', this.ocultas[i]) : ''}${descripcion}`, lx, c.y0 - 8);
         ctx.textAlign = 'left';
@@ -1214,22 +1237,45 @@ class VistaMapa extends ItemView {
       const activo = enCamino ? enCamino.has(n.id) : this.sugerencia ? enSug : (!nivel || n.id in nivel) && this.activo(n);
       if (n.esMes) { // un mes se dibuja como cápsula con su nombre: un punto grande no dice «mes»
         ctx.font = f(600, 11.5);
-        const corto = String(n.titulo).length > 20 ? String(n.titulo).slice(0, 19) + '…' : n.titulo;
-        const etq = n.abierta ? `${corto} ▾` : `${corto} · ${n.agrupados}`;
+        const etq = etiquetaCapsula(n);
         const w = ctx.measureText(etq).width, alto = 21 / sk, pad = 9 / vista.k, rr = alto / 2;
         // Una cápsula ancha centrada en su columna se sale por la izquierda del lienzo: se acota
         // al borde visible en vez de dejarla cortada.
         const izq = -vista.x / vista.k + 6 / vista.k;
         const bx = Math.max(izq, n.x - (w + pad * 2) / 2), by = n.y - alto / 2;
-        ctx.fillStyle = rgba('#C9D1FF', n.abierta ? 0.02 : activo ? 0.13 : 0.05);
-        ctx.strokeStyle = rgba('#C9D1FF', n.abierta ? 0.3 : activo ? 0.52 : 0.16);
-        if (n.abierta) ctx.setLineDash([4 / vista.k, 3 / vista.k]);
+        // Abierta y cerrada pesan lo MISMO: mismo tamaño, mismo contraste, mismo borde sólido.
+        // Solo cambia el color — acento cuando está abierta, neutro cuando no. Antes la abierta
+        // se dibujaba en punteado casi transparente: dejaba de parecer un botón justo cuando
+        // había que volver a tocarla.
+        const base = n.abierta ? ACENTO : '#C9D1FF';
+        ctx.fillStyle = rgba(base, n.abierta ? 0.18 : activo ? 0.13 : 0.06);
+        ctx.strokeStyle = rgba(base, n.abierta ? 0.66 : activo ? 0.52 : 0.22);
         ctx.lineWidth = 1.2 / vista.k;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(bx, by, w + pad * 2, alto, rr); else ctx.rect(bx, by, w + pad * 2, alto);
-        ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = n.abierta ? 'rgba(230,234,255,.55)' : activo ? '#FFFFFF' : 'rgba(230,234,255,.42)';
+        ctx.fill(); ctx.stroke();
+        // El corchete: abraza las notas que la cápsula acaba de mostrar. Sin él no se leen como
+        // «las de este mes», solo como más puntos. Va pegado a la columna de puntos y termina en
+        // un pie: dos grupos abiertos seguidos caen en la misma vertical, y sin el pie las dos
+        // líneas se leen como una sola que nunca cierra.
+        if (n.abierta) {
+          let fin = n.y;
+          for (const x of this.N) if (!x.esMes && !x.oculto && x.capa === n.capa && (x.mes === n.clave || x.origen === n.clave)) fin = Math.max(fin, x.y);
+          if (fin > n.y + 6 / vista.k) {
+            const lx = n.x - 13 / vista.k, pie = 5 / vista.k;
+            ctx.strokeStyle = rgba(ACENTO, 0.38); ctx.lineWidth = 1.5 / vista.k;
+            ctx.beginPath();
+            ctx.moveTo(lx + pie, by + alto + 2 / vista.k); ctx.lineTo(lx, by + alto + 2 / vista.k);
+            ctx.lineTo(lx, fin); ctx.lineTo(lx + pie, fin);
+            ctx.stroke();
+          }
+        }
+        ctx.fillStyle = n.abierta ? '#FFFFFF' : activo ? '#FFFFFF' : 'rgba(230,234,255,.52)';
         ctx.fillText(etq, bx + pad, n.y + 4 / sk);
+        // El área de clic queda igual a lo dibujado. Antes el clic se medía por distancia al
+        // CENTRO con radio de 14 px: en una cápsula de 130 px de ancho, tocar su texto no la
+        // activaba — o activaba la nota de al lado.
+        n.caja = { x: bx, y: by, w: w + pad * 2, h: alto };
         cajas.push({ x: bx - 3 / vista.k, y: by - 3 / vista.k, w: w + pad * 2 + 6 / vista.k, h: alto + 6 / vista.k });
         continue; // ni punto ni rótulo aparte: la cápsula ya los reemplaza
       }
@@ -1271,6 +1317,14 @@ class VistaMapa extends ItemView {
   // ── gestos ─────────────────────────────────────────────────────────────────
   nodoEn(px, py) {
     const v = this.vista, x = (px - v.x) / v.k, y = (py - v.y) / v.k;
+    // Las cápsulas primero y por su rectángulo: son controles anchos y tienen que ganarle a
+    // cualquier punto que les quede debajo. El margen extra es el dedo en el celular.
+    const m = (Platform.isMobile ? 6 : 3) / v.k;
+    for (const n of this.N) {
+      if (!n.esMes || !n.caja || !this.visible(n)) continue;
+      const c = n.caja;
+      if (x >= c.x - m && x <= c.x + c.w + m && y >= c.y - m && y <= c.y + c.h + m) return n;
+    }
     let mejor = null, dmin = (Platform.isMobile ? 22 : 14) / v.k;
     for (const n of this.N) { if (!this.visible(n)) continue; const d = Math.hypot(n.x - x, n.y - y); if (d < dmin) { dmin = d; mejor = n; } }
     return mejor;
@@ -1337,7 +1391,7 @@ class VistaMapa extends ItemView {
     const temas = [...new Set(vec.filter((v) => v.tema && v.tema !== n.tema && !v.fuente).map((v) => v.tema))];
     const grados = this.N.filter((x) => !x.fuente && x.capa !== ultima).map((x) => this.ady[x.id].length).sort((x, y) => y - x);
     const umbral = grados[Math.floor(grados.length * 0.1)] || Infinity, out = [];
-    if (n.esMes) out.push(T('Agrupa {0} notas de ese mes. Tócalo sostenido, o usa «Abrir el mes», para verlas por separado.', n.agrupados));
+    if (n.esMes) out.push(T('Agrupa {0} notas de ese mes. Tócala para abrirla, y otra vez para cerrarla.', n.total ?? n.agrupados));
     else if (n.agrupados) out.push(T('Agrupa {0} notas del tema. Tócalo sostenido o usa «Expandir» para verlas por separado.', n.agrupados + 1));
     else if (n.capa === ultima) out.push(T('Página de síntesis: resume el tema y de ella cuelgan sus notas.'));
     else if (!vec.length) out.push(T('Aislada: ninguna nota la enlaza y ella no enlaza a ninguna.'));
@@ -1368,7 +1422,7 @@ class VistaMapa extends ItemView {
     ojo.createSpan({ text: n.agrupados ? `Supernodo · ${nombreTema}` : `${nombreTema} · ${capa[1]}` });
     // Un mes se nombra por su mes; un tema colapsado, por su tema. Y el mes no suma uno:
     // su nodo es virtual, no una nota más.
-    cab.createEl('h3', { text: n.esMes ? T('{0} · {1} notas', n.titulo, n.agrupados) : n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
+    cab.createEl('h3', { text: n.esMes ? T('{0} · {1} notas', n.titulo, n.total ?? n.agrupados) : n.agrupados ? T('{0} · {1} notas', nombreTema, n.agrupados + 1) : n.titulo });
     const meta = [];
     if (!n.virtual) meta.push(n.fuente ? 'fuente original' : n.ruta.split('/').slice(-2).join('/'));
     meta.push(`${vec.length} conexiones`);
