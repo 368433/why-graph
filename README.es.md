@@ -65,14 +65,14 @@ Es la forma habitual de instalar un plugin directo desde GitHub:
 
 1. Instala **Obsidian42 - BRAT** desde los complementos de la comunidad.
 2. Paleta de comandos → **BRAT: Add a beta plugin for testing**.
-3. Pega `DBB-Labs/mapa-neuronal`.
+3. Pega `DBB-FC/mapa-neuronal`.
 
 BRAT lo instala, lo activa y lo actualiza con cada release nueva.
 
 ### A mano
 
 Baja `main.js`, `manifest.json` y `styles.css` de la
-[última release](https://github.com/DBB-Labs/mapa-neuronal/releases/latest) a
+[última release](https://github.com/DBB-FC/mapa-neuronal/releases/latest) a
 `<vault>/.obsidian/plugins/mapa-neuronal/` y actívalo en Complementos de la comunidad.
 No hace falta nada más: esos tres archivos son todo el plugin.
 
