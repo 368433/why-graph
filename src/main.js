@@ -1562,13 +1562,26 @@ export default class MapaNeuronal extends Plugin {
     if (r.status >= 400) throw new Error(T('{0} respondió {1}: {2}', nombre, r.status, j.error?.message || 'error'));
     return j;
   }
+  // Pedir y, si el servicio está sobrecargado, volver a intentar. Un 503 o un 429 en la capa
+  // gratuita es lo normal a ciertas horas, y rendirse en el primer intento hacía fallar una
+  // sugerencia que iba a funcionar dos segundos después. Solo se reintenta lo que tiene sentido
+  // reintentar: red caída (0), límite de uso (429) y errores del servidor (5xx). Un 401 o un 400
+  // no mejoran por insistir, y repetirlos sería gastar la cuota del usuario para nada.
+  async pedirReintentando(opciones, nombre, local) {
+    const esperas = this.esperasReintento || [1200, 3500, 8000];   // las pruebas las ponen en 0
+    for (let i = 0; ; i++) {
+      const r = await requestUrl(Object.assign({ method: 'POST', throw: false }, opciones));
+      const vale = r.status === 0 || r.status === 429 || r.status >= 500;
+      if (!vale || i >= esperas.length) return this.revisarRespuesta(r, nombre, local);
+      await new Promise((ok) => window.setTimeout(ok, esperas[i]));
+    }
+  }
   async pedirClaude(llave, modelo, sistema, usuario, esquema) {
     const headers = { 'content-type': 'application/json', 'x-api-key': llave, 'anthropic-version': '2023-06-01' };
     const cuerpo = { model: modelo, max_tokens: 16000, system: sistema, messages: [{ role: 'user', content: usuario }],
       output_config: { format: { type: 'json_schema', schema: esquema } } };
     if (modelo === 'claude-opus-5') { headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; cuerpo.fallbacks = 'default'; }
-    const r = await requestUrl({ url: PROVEEDORES.claude.url, method: 'POST', headers, body: JSON.stringify(cuerpo), throw: false });
-    const j = this.revisarRespuesta(r, 'Claude');
+    const j = await this.pedirReintentando({ url: PROVEEDORES.claude.url, headers, body: JSON.stringify(cuerpo) }, 'Claude');
     if (j.stop_reason === 'refusal') throw new Error(T('El modelo declinó esta solicitud.'));
     if (j.stop_reason === 'max_tokens') throw new Error(T('La respuesta quedó cortada. Reintenta.'));
     return (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
@@ -1580,8 +1593,7 @@ export default class MapaNeuronal extends Plugin {
     const cuerpo = { model: modelo, messages: [{ role: 'system', content: sistema }, { role: 'user', content: usuario }],
       response_format: prov === 'local' ? { type: 'json_object' } : { type: 'json_schema', json_schema: { name: 'respuesta', strict: true, schema: esquema } } };
     if (prov === 'local') cuerpo.messages[0].content += '\nResponde SOLO con un objeto JSON con estas claves: ' + Object.keys(esquema.properties).join(', ') + '.';
-    const r = await requestUrl({ url, method: 'POST', headers, body: JSON.stringify(cuerpo), throw: false });
-    const j = this.revisarRespuesta(r, prov === 'local' ? 'La IA local' : 'OpenAI', prov === 'local');
+    const j = await this.pedirReintentando({ url, headers, body: JSON.stringify(cuerpo) }, prov === 'local' ? 'La IA local' : 'OpenAI', prov === 'local');
     return j.choices?.[0]?.message?.content || '';
   }
   async pedirGemini(llave, modelo, sistema, usuario, esquema) {
@@ -1589,8 +1601,7 @@ export default class MapaNeuronal extends Plugin {
     const url = `${PROVEEDORES.gemini.url}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(llave)}`;
     const cuerpo = { systemInstruction: { parts: [{ text: sistema }] }, contents: [{ role: 'user', parts: [{ text: usuario }] }],
       generationConfig: { responseMimeType: 'application/json', responseSchema: limpiar(esquema) } };
-    const r = await requestUrl({ url, method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo), throw: false });
-    const j = this.revisarRespuesta(r, 'Gemini');
+    const j = await this.pedirReintentando({ url, headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) }, 'Gemini');
     return (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join('');
   }
   async sugerir(fr) {
