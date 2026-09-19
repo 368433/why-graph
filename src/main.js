@@ -582,7 +582,15 @@ async function construir(app, s) {
   const resueltos = app.metadataCache.resolvedLinks, sinMotivoPorNota = {}, frases = {}, citas = {};
   const carpetasF = carpetasFuentesDe(s), conFuentes = s.fuentes !== 'no' && s.fuentes !== false && carpetasF.length > 0;
   const enFuentes = (r) => carpetasF.some((c) => r.startsWith(c.ruta + '/'));
-  const sinCapa = cfg.carpetas.length ? todas.filter((f) => capaDe(f.path) < 0 && !cfg.excluir.has(f.basename) && !enFuentes(f.path)).map((f) => f.path) : [];
+  // «Fuera de toda capa» solo cuenta dentro de los árboles que el usuario sí mapeó: si sus
+  // capas son wiki/diario, wiki/temas…, una nota en wiki/suelta.md es un hueco que le
+  // interesa; prompts/, docs/ o el index.md de la raíz están fuera a propósito. En el
+  // cerebro real eran 31 avisos falsos en cada carga.
+  // Si todas las capas son carpetas de primer nivel, el árbol mapeado es el vault entero.
+  const raices = new Set(cfg.carpetas.map(([c]) => (c === '/' || c === '' ? '/' : c.split('/')[0])));
+  const plano = cfg.carpetas.every(([c]) => !c.includes('/'));
+  const enArbolMapeado = (r) => plano || raices.has('/') || (r.includes('/') && raices.has(r.split('/')[0]));
+  const sinCapa = cfg.carpetas.length ? todas.filter((f) => capaDe(f.path) < 0 && enArbolMapeado(f.path) && !cfg.excluir.has(f.basename) && !enFuentes(f.path)).map((f) => f.path) : [];
   for (const id of Object.keys(nodos)) {
     const archivo = app.vault.getFileByPath(id);
     const texto = archivo ? await app.vault.cachedRead(archivo) : '';

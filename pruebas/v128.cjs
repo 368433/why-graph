@@ -56,6 +56,14 @@ const menuFalso = () => ({ items: [], addItem(f) { const c = { titulo: '', setTi
   p.cierto('la nota sin capa no está en el mapa', !porId['suelto/nota-perdida.md']);
   const Dsin = await construir(app, Object.assign({}, AJUSTES, { carpetas: '' }));
   p.igual('sin carpetas configuradas no hay nada que validar', [Dsin.config.carpetasVacias, Dsin.config.sinCapa], [[], []]);
+  // Vault anidado (wiki/…): lo que está fuera del árbol mapeado (prompts/, la raíz) no es un
+  // hueco; una nota suelta DENTRO de wiki/ sí. En el cerebro real eran 31 avisos falsos.
+  const { app: appN } = vaultSimulado({
+    'wiki/diario/2026-01-01.md': '---\ntema: t\n---\nx', 'wiki/temas/t.md': '---\ntema: t\n---\ny',
+    'wiki/suelta.md': 'sin capa', 'prompts/ingest.md': 'prompt', 'index.md': 'índice', 'docs/guia.md': 'doc',
+  });
+  const Dn = await construir(appN, Object.assign({}, AJUSTES_BASE, { capas: 'E | e\nT | t', carpetas: 'wiki/diario = 0\nwiki/temas = 1', fuentes: 'no' }));
+  p.igual('anidado: solo cuenta lo suelto dentro del árbol mapeado', Dn.config.sinCapa, ['wiki/suelta.md']);
 
   // ── 3. La vista elige la hub y avisa a sus hermanas ──────────────────────────────────────────
   const v = vista(app, AJUSTES, D);
